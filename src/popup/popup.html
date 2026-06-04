@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px -apple-system, "Helvetica Neue", Arial, sans-serif; width: 240px; margin: 0; padding: 14px; }
+      h1 { font-size: 14px; margin: 0 0 10px; }
+      button { width: 100%; padding: 9px; font-size: 13px; border: 0; border-radius: 6px; cursor: pointer; }
+      #toggle { background: #2d7ff9; color: #fff; }
+      #toggle.active { background: #d23f31; }
+      #status { margin-top: 10px; color: #666; min-height: 16px; }
+      a { color: #2d7ff9; font-size: 12px; }
+      .row { margin-top: 10px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <h1>QQ Live Subtitles</h1>
+    <button id="toggle">Start subtitles</button>
+    <div id="status"></div>
+    <div class="row"><a id="opts" href="#">Settings (provider &amp; API key)</a></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

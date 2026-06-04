@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.DS_Store
+# local test audio for the spike
+*.wav
+*.mp3
+*.flac

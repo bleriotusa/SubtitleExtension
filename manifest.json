@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "QQ Live Subtitles (Chinese → English)",
+  "version": "0.1.0",
+  "description": "Real-time English subtitle overlay for Chinese video (QQ Video / v.qq.com) using tab-audio capture + a pluggable transcription/translation backend.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "tabCapture",
+    "offscreen",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://openrouter.ai/*",
+    "https://generativelanguage.googleapis.com/*",
+    "wss://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "QQ Live Subtitles",
+    "default_popup": "src/popup/popup.html"
+  },
+  "options_page": "src/options/options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://v.qq.com/*",
+        "https://*.v.qq.com/*",
+        "https://film.qq.com/*"
+      ],
+      "js": ["src/content/overlay.js"],
+      "css": ["src/content/overlay.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/audio/worklet.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

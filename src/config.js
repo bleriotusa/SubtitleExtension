@@ -1,0 +1,62 @@
+// Central defaults + persisted-settings access.
+//
+// Everything the user can tune lives here. The options page writes overrides
+// into chrome.storage.local under STORAGE_KEY; getConfig() merges them over the
+// defaults so the rest of the code only ever reads one resolved object.
+
+export const STORAGE_KEY = "qqls.config";
+
+export const DEFAULT_CONFIG = {
+  // Which SubtitleProvider to use. See src/providers/index.js for the registry.
+  //   "openrouter-batch" -> works today on an OpenRouter key, ~2-3s lag.
+  //   "gemini-live"      -> direct Google key, websocket streaming, ~1s lag.
+  provider: "openrouter-batch",
+
+  // Per-provider settings. Only the block for the active provider is used.
+  openrouter: {
+    apiKey: "",
+    // One call transcribes Mandarin AND translates to English.
+    model: "google/gemini-3.1-flash-lite",
+    baseUrl: "https://openrouter.ai/api/v1",
+  },
+  geminiLive: {
+    apiKey: "",
+    model: "models/gemini-2.5-flash-live-preview",
+  },
+
+  // Audio chunking (batch providers only). Smaller = lower lag, worse accuracy.
+  // Batch realistically floors at ~2000ms for good quality.
+  chunkMs: 3000,
+  // Hard cap so a long monologue still flushes even without a silence gap.
+  maxChunkMs: 6000,
+  // RMS below this (0..1) counts as silence for VAD-based cutting.
+  silenceThreshold: 0.012,
+  // Trailing silence needed to end a chunk early.
+  silenceHangoverMs: 350,
+
+  targetLang: "English",
+  sourceLangHint: "Mandarin Chinese",
+
+  // Overlay appearance.
+  fontSize: 28,
+  maxLines: 2,
+};
+
+export async function getConfig() {
+  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  const override = stored?.[STORAGE_KEY] ?? {};
+  // Shallow-merge top level, deep-merge the per-provider blocks.
+  return {
+    ...DEFAULT_CONFIG,
+    ...override,
+    openrouter: { ...DEFAULT_CONFIG.openrouter, ...(override.openrouter ?? {}) },
+    geminiLive: { ...DEFAULT_CONFIG.geminiLive, ...(override.geminiLive ?? {}) },
+  };
+}
+
+export async function setConfig(patch) {
+  const current = (await chrome.storage.local.get(STORAGE_KEY))?.[STORAGE_KEY] ?? {};
+  const next = { ...current, ...patch };
+  await chrome.storage.local.set({ [STORAGE_KEY]: next });
+  return next;
+}

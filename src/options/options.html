@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>QQ Live Subtitles — Settings</title>
+    <style>
+      body { font: 14px -apple-system, "Helvetica Neue", Arial, sans-serif; max-width: 560px; margin: 24px auto; padding: 0 16px; color: #222; }
+      h1 { font-size: 18px; }
+      fieldset { border: 1px solid #ddd; border-radius: 8px; margin: 16px 0; padding: 12px 16px; }
+      legend { font-weight: 600; padding: 0 6px; }
+      label { display: block; margin: 10px 0 4px; font-weight: 500; }
+      input, select { width: 100%; padding: 7px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+      .hint { color: #777; font-size: 12px; margin-top: 4px; }
+      .inline { display: flex; gap: 12px; }
+      .inline > div { flex: 1; }
+      button { margin-top: 16px; padding: 9px 18px; background: #2d7ff9; color: #fff; border: 0; border-radius: 6px; cursor: pointer; font-size: 14px; }
+      #saved { color: #1a8f3c; margin-left: 12px; }
+      .warn { background: #fff7e6; border: 1px solid #ffd591; border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #7a5b00; }
+    </style>
+  </head>
+  <body>
+    <h1>QQ Live Subtitles — Settings</h1>
+
+    <fieldset>
+      <legend>Backend</legend>
+      <label for="provider">Transcription / translation backend</label>
+      <select id="provider"></select>
+      <p class="hint" id="provider-hint"></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>OpenRouter (batch)</legend>
+      <label for="or-key">OpenRouter API key</label>
+      <input id="or-key" type="password" placeholder="sk-or-..." />
+      <label for="or-model">Model</label>
+      <input id="or-model" type="text" />
+      <p class="hint">One call transcribes Mandarin and translates to English. Try
+        <code>google/gemini-3.1-flash-lite</code> (cheap) or a Groq Whisper model.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Gemini Live (streaming, ~1s)</legend>
+      <p class="warn">Streaming needs a <b>direct Google AI Studio key</b> — OpenRouter
+        cannot stream. This bypasses OpenRouter and bills Google directly.</p>
+      <label for="gl-key">Google AI Studio API key</label>
+      <input id="gl-key" type="password" placeholder="AIza..." />
+      <label for="gl-model">Model</label>
+      <input id="gl-model" type="text" />
+    </fieldset>
+
+    <fieldset>
+      <legend>Tuning</legend>
+      <div class="inline">
+        <div>
+          <label for="chunk">Chunk size (ms, batch only)</label>
+          <input id="chunk" type="number" min="1000" max="8000" step="250" />
+          <p class="hint">Lower = less lag, worse accuracy. ~3000 is a good start.</p>
+        </div>
+        <div>
+          <label for="font">Subtitle font size (px)</label>
+          <input id="font" type="number" min="14" max="60" step="1" />
+        </div>
+      </div>
+    </fieldset>
+
+    <button id="save">Save</button><span id="saved"></span>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

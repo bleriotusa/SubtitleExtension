@@ -1,0 +1,34 @@
+#qqls-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  z-index: 2147483647; /* above the player, including its fullscreen UI */
+  max-width: 80vw;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+}
+
+#qqls-overlay .qqls-line {
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  padding: 4px 14px;
+  border-radius: 6px;
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  white-space: pre-wrap;
+}
+
+#qqls-overlay .qqls-line.qqls-partial {
+  opacity: 0.85;
+  font-style: italic;
+}
+
+#qqls-overlay.qqls-hidden {
+  display: none;
+}
