@@ -39,6 +39,38 @@
     </fieldset>
 
     <fieldset>
+      <legend>OpenAI Realtime Translate (streaming, ~1s)</legend>
+      <p class="hint">Purpose-built live translator (<code>gpt-realtime-translate</code>):
+        audio in → English text out. Use OpenAI directly, or your Azure Foundry deployment.</p>
+      <label for="oa-mode">Endpoint</label>
+      <select id="oa-mode">
+        <option value="openai">OpenAI (direct)</option>
+        <option value="azure">Azure (your Foundry deployment)</option>
+      </select>
+      <label for="oa-key">API key</label>
+      <input id="oa-key" type="password" placeholder="sk-... (OpenAI) or Azure key" />
+      <label for="oa-model">Model (OpenAI direct)</label>
+      <input id="oa-model" type="text" />
+      <div id="azure-fields">
+        <label for="oa-az-endpoint">Azure endpoint</label>
+        <input id="oa-az-endpoint" type="text" placeholder="https://<resource>.openai.azure.com" />
+        <div class="inline">
+          <div>
+            <label for="oa-az-deploy">Azure deployment name</label>
+            <input id="oa-az-deploy" type="text" placeholder="gpt-realtime-translate" />
+          </div>
+          <div>
+            <label for="oa-az-ver">API version</label>
+            <input id="oa-az-ver" type="text" />
+          </div>
+        </div>
+        <p class="warn">Browser websockets can't send an api-key header. This uses the
+          insecure-api-key subprotocol; if your Azure resource rejects it, mint an
+          ephemeral key server-side and paste it above.</p>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Gemini Live (streaming, ~1s)</legend>
       <p class="warn">Streaming needs a <b>direct Google AI Studio key</b> — OpenRouter
         cannot stream. This bypasses OpenRouter and bills Google directly.</p>

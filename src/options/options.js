@@ -19,6 +19,11 @@ function updateHint() {
 }
 providerSel.addEventListener("change", updateHint);
 
+function updateAzureVisibility() {
+  $("azure-fields").style.display = $("oa-mode").value === "azure" ? "" : "none";
+}
+$("oa-mode").addEventListener("change", updateAzureVisibility);
+
 async function load() {
   const c = await getConfig();
   providerSel.value = c.provider;
@@ -26,9 +31,17 @@ async function load() {
   $("or-model").value = c.openrouter.model;
   $("gl-key").value = c.geminiLive.apiKey;
   $("gl-model").value = c.geminiLive.model;
+  const o = c.openaiRealtime;
+  $("oa-mode").value = o.mode;
+  $("oa-key").value = o.apiKey;
+  $("oa-model").value = o.model;
+  $("oa-az-endpoint").value = o.azureEndpoint;
+  $("oa-az-deploy").value = o.azureDeployment;
+  $("oa-az-ver").value = o.azureApiVersion;
   $("chunk").value = c.chunkMs;
   $("font").value = c.fontSize;
   updateHint();
+  updateAzureVisibility();
 }
 
 $("save").addEventListener("click", async () => {
@@ -36,6 +49,14 @@ $("save").addEventListener("click", async () => {
     provider: providerSel.value,
     openrouter: { apiKey: $("or-key").value.trim(), model: $("or-model").value.trim() },
     geminiLive: { apiKey: $("gl-key").value.trim(), model: $("gl-model").value.trim() },
+    openaiRealtime: {
+      mode: $("oa-mode").value,
+      apiKey: $("oa-key").value.trim(),
+      model: $("oa-model").value.trim(),
+      azureEndpoint: $("oa-az-endpoint").value.trim(),
+      azureDeployment: $("oa-az-deploy").value.trim(),
+      azureApiVersion: $("oa-az-ver").value.trim(),
+    },
     chunkMs: Number($("chunk").value) || 3000,
     fontSize: Number($("font").value) || 28,
   });

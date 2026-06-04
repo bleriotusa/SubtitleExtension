@@ -49,30 +49,35 @@ async function startCapture(streamId) {
   // (2) Keep the tab audible — capturing alone silences playback.
   source.connect(audioCtx.destination);
 
-  // (3) Tap PCM for the provider.
-  await audioCtx.audioWorklet.addModule(chrome.runtime.getURL("src/audio/worklet.js"));
-  workletNode = new AudioWorkletNode(audioCtx, "capture-processor");
-  source.connect(workletNode);
-  // Worklet output isn't routed to speakers; connecting to destination keeps
-  // some browsers from garbage-collecting the node.
-  workletNode.connect(audioCtx.destination);
-
+  // (3) Build the provider; its required sample rate drives the worklet.
   provider = createProvider(config);
   provider.onSubtitle((line) => {
     chrome.runtime.sendMessage({ type: "subtitle", line }).catch(() => {});
   });
-  await provider.start();
+  const targetRate = provider.constructor.inputSampleRate || 16000;
 
+  await audioCtx.audioWorklet.addModule(chrome.runtime.getURL("src/audio/worklet.js"));
+  workletNode = new AudioWorkletNode(audioCtx, "capture-processor", {
+    processorOptions: { targetRate },
+  });
   workletNode.port.onmessage = (ev) => {
-    // ev.data is an Int16Array frame (16 kHz mono, ~200ms).
+    // ev.data is an Int16Array PCM frame (~200ms) at the provider's rate.
     try {
       provider?.pushAudio(ev.data);
     } catch (e) {
       console.error("[offscreen] pushAudio failed", e);
     }
   };
+  // Connecting to destination keeps the node from being garbage-collected;
+  // it outputs silence.
+  workletNode.connect(audioCtx.destination);
 
-  console.log("[offscreen] capture started:", config.provider);
+  // Open the session BEFORE audio flows so streaming providers don't drop the
+  // first frames.
+  await provider.start();
+  source.connect(workletNode);
+
+  console.log(`[offscreen] capture started: ${config.provider} @ ${targetRate}Hz`);
 }
 
 async function stopCapture() {

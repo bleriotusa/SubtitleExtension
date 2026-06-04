@@ -6,17 +6,16 @@
 // input samples that fall in its window. Cheap, and the gentle low-pass it
 // gives is fine for speech.
 
-const TARGET_RATE = 16000;
-const OUT_FRAME = 3200; // samples @ 16 kHz === 200ms
-
 class CaptureProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this._ratio = sampleRate / TARGET_RATE; // global `sampleRate` = context rate
+    const targetRate = options?.processorOptions?.targetRate || 16000;
+    this._ratio = sampleRate / targetRate; // global `sampleRate` = context rate
+    this._frameLen = Math.round(targetRate * 0.2); // ~200ms per posted frame
     this._acc = 0;
     this._accCount = 0;
     this._needed = this._ratio;
-    this._out = new Int16Array(OUT_FRAME);
+    this._out = new Int16Array(this._frameLen);
     this._outLen = 0;
   }
 
@@ -42,7 +41,7 @@ class CaptureProcessor extends AudioWorkletProcessor {
         this._acc = 0;
         this._accCount = 0;
 
-        if (this._outLen >= OUT_FRAME) {
+        if (this._outLen >= this._frameLen) {
           const frame = this._out.slice(0, this._outLen);
           this.port.postMessage(frame, [frame.buffer]);
           this._outLen = 0;

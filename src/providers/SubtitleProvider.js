@@ -11,6 +11,12 @@
 //                     (lets the overlay reason about lag if it wants to)
 
 export class SubtitleProvider {
+  /**
+   * Sample rate (Hz) this provider wants its PCM frames in. The capture worklet
+   * downsamples to this. 16 kHz suits most STT; OpenAI realtime wants 24 kHz.
+   */
+  static inputSampleRate = 16000;
+
   /** @param {object} config Resolved config from getConfig(). */
   constructor(config) {
     this.config = config;

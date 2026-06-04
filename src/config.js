@@ -23,6 +23,18 @@ export const DEFAULT_CONFIG = {
     apiKey: "",
     model: "models/gemini-2.5-flash-live-preview",
   },
+  openaiRealtime: {
+    mode: "openai", // "openai" (direct) | "azure" (your Foundry deployment)
+    apiKey: "",
+    model: "gpt-realtime-translate",
+    targetLangCode: "en",
+    // OpenAI direct endpoint:
+    openaiBaseUrl: "wss://api.openai.com/v1/realtime",
+    // Azure: wss://<resource>.openai.azure.com  +  your deployment name.
+    azureEndpoint: "",
+    azureDeployment: "",
+    azureApiVersion: "2025-04-01-preview",
+  },
 
   // Audio chunking (batch providers only). Smaller = lower lag, worse accuracy.
   // Batch realistically floors at ~2000ms for good quality.
@@ -51,6 +63,7 @@ export async function getConfig() {
     ...override,
     openrouter: { ...DEFAULT_CONFIG.openrouter, ...(override.openrouter ?? {}) },
     geminiLive: { ...DEFAULT_CONFIG.geminiLive, ...(override.geminiLive ?? {}) },
+    openaiRealtime: { ...DEFAULT_CONFIG.openaiRealtime, ...(override.openaiRealtime ?? {}) },
   };
 }
 

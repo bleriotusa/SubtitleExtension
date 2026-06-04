@@ -26,6 +26,7 @@ so you can swap backends from the options page without touching capture or overl
 | Backend | Latency | Key | Notes |
 |---|---|---|---|
 | **OpenRouter (batch)** — default | ~2–3s | your OpenRouter key | Gemini 3.1 Flash Lite; one call transcribes **and** translates. Also accepts Groq Whisper model ids. |
+| **OpenAI Realtime Translate (streaming)** | ~1s | OpenAI **or** Azure key | `gpt-realtime-translate` — purpose-built live translator, audio in → English text out. ~$0.034/min. Most mature streaming option; switchable between OpenAI-direct and your Azure Foundry deployment. |
 | **Gemini Live (streaming)** | ~1s | **direct Google key** | Websocket, partial captions that refine in place. OpenRouter has no streaming, so this path bills Google directly. |
 
 > **Why no ~1s on OpenRouter?** OpenRouter's speech endpoints are batch-only. With
