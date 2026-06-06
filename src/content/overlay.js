@@ -9,6 +9,9 @@
 // overrides are read straight from chrome.storage.local.
 
 (() => {
+  // Bail out in sandboxed iframes where extension APIs aren't available.
+  if (typeof chrome === "undefined" || !chrome.storage?.local || !chrome.runtime?.onMessage) return;
+
   const STORAGE_KEY = "qqls.config";
   const DEFAULTS = { fontSize: 28, maxLines: 2 };
 
