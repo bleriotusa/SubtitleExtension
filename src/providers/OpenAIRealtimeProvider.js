@@ -25,6 +25,7 @@ export class OpenAIRealtimeProvider extends SubtitleProvider {
     super(config);
     this._ws = null;
     this._ready = false;
+    this._settled = false;
     this._pending = [];
     this._partial = "";
     this._tStart = 0;
@@ -40,8 +41,9 @@ export class OpenAIRealtimeProvider extends SubtitleProvider {
       const ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
       this._ws = ws;
       ws.binaryType = "arraybuffer";
+      let opened = false;
 
-      ws.onopen = () => this._configureSession();
+      ws.onopen = () => { opened = true; this._configureSession(); };
 
       ws.onmessage = (ev) => {
         const msg = parseEvent(ev.data);
@@ -67,9 +69,18 @@ export class OpenAIRealtimeProvider extends SubtitleProvider {
         this._handleTranscript(t, msg);
       };
 
-      ws.onerror = () => { if (!this._ready) reject(new Error("OpenAI realtime websocket error")); };
-      ws.onclose = () => { this._ready = false; };
-    });
+      // The "error" event is intentionally detail-free; the close frame carries
+      // the real reason (code/reason). Surface it so failures are diagnosable.
+      ws.onerror = () => { /* wait for onclose, which has the code/reason */ };
+      ws.onclose = (ev) => {
+        this._ready = false;
+        if (!this._ready && !this._settled) {
+          const where = opened ? "after handshake" : "during handshake";
+          const hint = closeHint(ev.code, o.mode);
+          reject(new Error(`OpenAI realtime closed ${where} — code ${ev.code}${ev.reason ? ` "${ev.reason}"` : ""}${hint ? ` (${hint})` : ""}`));
+        }
+      };
+    }).then(() => { this._settled = true; }, (e) => { this._settled = true; throw e; });
   }
 
   _configureSession() {
@@ -131,20 +142,40 @@ function buildEndpoint(o) {
       throw new Error("Azure realtime needs azureEndpoint and azureDeployment (see Settings).");
     }
     const base = o.azureEndpoint.replace(/^https?:/, "wss:").replace(/\/$/, "");
+    // Azure browser auth: the api-key MUST be a query-string parameter (the
+    // api-key request header isn't settable from a browser websocket). WSS
+    // encrypts the query string. No subprotocol is used for Azure.
     const url =
       `${base}/openai/realtime?api-version=${encodeURIComponent(o.azureApiVersion)}` +
-      `&deployment=${encodeURIComponent(o.azureDeployment)}`;
-    // Azure browser websockets can't set an api-key header; the insecure-api-key
-    // subprotocol is the portable option. If your resource rejects it, mint an
-    // ephemeral key server-side and put it in apiKey instead.
-    return { url, protocols: ["realtime", `openai-insecure-api-key.${o.apiKey}`] };
+      `&deployment=${encodeURIComponent(o.azureDeployment)}` +
+      `&api-key=${encodeURIComponent(o.apiKey)}`;
+    return { url, protocols: undefined };
   }
-  // OpenAI direct.
+  // OpenAI direct: browser websockets can't set the Authorization header, so the
+  // key rides in the "openai-insecure-api-key" subprotocol (key is client-side).
   const url = `${o.openaiBaseUrl}?model=${encodeURIComponent(o.model)}`;
   return {
     url,
     protocols: ["realtime", `openai-insecure-api-key.${o.apiKey}`, "openai-beta.realtime-v1"],
   };
+}
+
+// Map common websocket close codes to a likely cause for this API.
+function closeHint(code, mode) {
+  switch (code) {
+    case 1008: // policy violation — almost always auth
+    case 3000:
+      return "auth rejected — check the API key" + (mode === "azure" ? " and that the key matches the resource" : "");
+    case 1006:
+      return "connection failed — check the endpoint URL" + (mode === "azure" ? "/region and that the deployment exists" : "");
+    case 1011:
+      return "server error — model/deployment may be wrong or unavailable";
+    case 4004:
+    case 1003:
+      return "not found — wrong deployment name or api-version";
+    default:
+      return "";
+  }
 }
 
 function parseEvent(data) {
