@@ -10,7 +10,7 @@ export const DEFAULT_CONFIG = {
   // Which SubtitleProvider to use. See src/providers/index.js for the registry.
   //   "openrouter-batch" -> works today on an OpenRouter key, ~2-3s lag.
   //   "gemini-live"      -> direct Google key, websocket streaming, ~1s lag.
-  provider: "openrouter-batch",
+  provider: "openai-realtime",
 
   // Per-provider settings. Only the block for the active provider is used.
   openrouter: {
