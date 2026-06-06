@@ -111,9 +111,13 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
 function endpoints(o) {
   if (o.mode === "azure") {
     const origin = azureOrigin(o.azureEndpoint);
+    // Azure's v1 API needs api-version=preview to reach the (preview) realtime
+    // translations surface; without it the deployment resolves in the wrong scope
+    // and returns DeploymentNotFound.
+    const v = "?api-version=preview";
     return {
-      clientSecrets: `${origin}/openai/v1/realtime/translations/client_secrets`,
-      calls: `${origin}/openai/v1/realtime/translations/calls`,
+      clientSecrets: `${origin}/openai/v1/realtime/translations/client_secrets${v}`,
+      calls: `${origin}/openai/v1/realtime/translations/calls${v}`,
       azure: true,
     };
   }
