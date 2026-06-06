@@ -142,12 +142,13 @@ function buildEndpoint(o) {
       throw new Error("Azure realtime needs azureEndpoint and azureDeployment (see Settings).");
     }
     const base = o.azureEndpoint.replace(/^https?:/, "wss:").replace(/\/$/, "");
-    // Azure browser auth: the api-key MUST be a query-string parameter (the
-    // api-key request header isn't settable from a browser websocket). WSS
-    // encrypts the query string. No subprotocol is used for Azure.
+    // Azure GA "v1" realtime path: /openai/v1/realtime?api-version=preview&model=<deployment>.
+    // api-version is the literal "preview" keyword (or a dated version), never the
+    // model snapshot date. Browser auth: the api-key MUST be a query parameter (the
+    // header isn't settable from a browser websocket); WSS encrypts the query.
     const url =
-      `${base}/openai/realtime?api-version=${encodeURIComponent(o.azureApiVersion)}` +
-      `&deployment=${encodeURIComponent(o.azureDeployment)}` +
+      `${base}/openai/v1/realtime?api-version=${encodeURIComponent(o.azureApiVersion || "preview")}` +
+      `&model=${encodeURIComponent(o.azureDeployment)}` +
       `&api-key=${encodeURIComponent(o.apiKey)}`;
     return { url, protocols: undefined };
   }

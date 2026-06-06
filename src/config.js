@@ -33,7 +33,9 @@ export const DEFAULT_CONFIG = {
     // Azure: wss://<resource>.openai.azure.com  +  your deployment name.
     azureEndpoint: "",
     azureDeployment: "",
-    azureApiVersion: "2025-04-01-preview",
+    // Azure GA "v1" API. Use the literal keyword "preview" to reach preview
+    // models like gpt-realtime-translate (NOT a dated version, NOT the model date).
+    azureApiVersion: "preview",
   },
 
   // Audio chunking (batch providers only). Smaller = lower lag, worse accuracy.

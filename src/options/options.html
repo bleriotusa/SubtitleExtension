@@ -61,9 +61,12 @@
           </div>
           <div>
             <label for="oa-az-ver">API version</label>
-            <input id="oa-az-ver" type="text" />
+            <input id="oa-az-ver" type="text" placeholder="preview" />
           </div>
         </div>
+        <p class="hint">API version is an Azure service version — use the literal word
+          <code>preview</code> for preview models like gpt-realtime-translate. It is
+          <b>not</b> the model's snapshot date.</p>
         <p class="warn">Browser websockets can't send an api-key header. This uses the
           insecure-api-key subprotocol; if your Azure resource rejects it, mint an
           ephemeral key server-side and paste it above.</p>
