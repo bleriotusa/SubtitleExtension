@@ -145,8 +145,11 @@ async function resolveAzureSession(o, targetLang) {
   if (!o.azureDeployment) throw new Error("Azure deployment name not set (see Settings).");
 
   const origin = azureOriginRaw(o.azureEndpoint);
+  // Try BOTH aliases regardless of which the user entered — a Foundry deployment
+  // often resolves only on the services.ai.azure.com host, not the openai one.
+  const servicesHost = origin.replace(/\.openai\.azure\.com/i, ".services.ai.azure.com");
   const openaiHost = origin.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com");
-  const hosts = [...new Set([origin, openaiHost])]; // Foundry host first
+  const hosts = [...new Set([servicesHost, origin, openaiHost])]; // Foundry host first
   const dep = encodeURIComponent(o.azureDeployment);
   const v = "api-version=preview";
   const styles = [
