@@ -110,11 +110,15 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
   }
 }
 
-function sessionBody(model, targetLang) {
+function sessionBody(model, targetLang, type) {
   // Translation session: bind the model and target output language. Input
   // transcription is omitted (it would need a separate gpt-realtime-whisper
-  // deployment); we only want the English output.
-  return JSON.stringify({ session: { model, audio: { output: { language: targetLang || "en" } } } });
+  // deployment); we only want the English output. Azure uses the generic
+  // realtime endpoint and needs an explicit session.type = "translation";
+  // OpenAI-direct uses the /translations/ endpoint where type is implied.
+  const session = { model, audio: { output: { language: targetLang || "en" } } };
+  if (type) session.type = type;
+  return JSON.stringify({ session });
 }
 
 function extractKey(data) {
@@ -149,22 +153,16 @@ async function resolveAzureSession(o, targetLang) {
   // often resolves only on the services.ai.azure.com host, not the openai one.
   const servicesHost = origin.replace(/\.openai\.azure\.com/i, ".services.ai.azure.com");
   const openaiHost = origin.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com");
-  const hosts = [...new Set([servicesHost, origin, openaiHost])]; // Foundry host first
-  // The generic v1 endpoint resolved this deployment with NO api-version, but
-  // ?api-version=preview made it DeploymentNotFound — so try no-version first.
-  const versions = ["", "preview", "2025-04-01-preview"];
-  const candidates = [];
-  for (const h of hosts) {
-    for (const ver of versions) {
-      const q = ver ? `?api-version=${ver}` : "";
-      candidates.push({
-        cs: `${h}/openai/v1/realtime/translations/client_secrets${q}`,
-        calls: `${h}/openai/v1/realtime/translations/calls${q}`,
-      });
-    }
-  }
+  const hosts = [...new Set([openaiHost, origin, servicesHost])];
+  // Azure mints the translate key on the GENERIC realtime endpoint (where the
+  // deployment resolves), with session.type = "translation" — NOT the
+  // /translations/ sub-path (which 404s on Azure) and NO api-version (GA).
+  const candidates = hosts.map((h) => ({
+    cs: `${h}/openai/v1/realtime/client_secrets`,
+    calls: `${h}/openai/v1/realtime/calls`,
+  }));
   const headers = { "api-key": o.apiKey, "Content-Type": "application/json" };
-  const body = sessionBody(o.azureDeployment, targetLang);
+  const body = sessionBody(o.azureDeployment, targetLang, "translation");
 
   const tried = [];
   {
