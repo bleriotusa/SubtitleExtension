@@ -33,7 +33,7 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
     if (!track) throw new Error("No audio track in the captured stream.");
 
     const ep = endpoints(o);
-    const ephemeralKey = await mintEphemeralKey(o, ep);
+    const ephemeralKey = await mintEphemeralKey(o, ep, o.targetLangCode);
 
     const pc = new RTCPeerConnection();
     this._pc = pc;
@@ -45,7 +45,9 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
     dc.addEventListener("message", (e) => this._onEvent(e.data));
 
     const ready = new Promise((resolve, reject) => {
-      dc.addEventListener("open", () => { this._configureSession(); resolve(); });
+      // The translation session is fully configured when the secret is minted
+      // (model + target language), so no session.update is needed here.
+      dc.addEventListener("open", () => resolve());
       pc.addEventListener("connectionstatechange", () => {
         if (["failed", "closed", "disconnected"].includes(pc.connectionState) && dc.readyState !== "open") {
           reject(new Error(`WebRTC connection ${pc.connectionState}.`));
@@ -70,24 +72,6 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
   }
 
   pushAudio() { /* unused — audio flows over the peer connection */ }
-
-  _configureSession() {
-    const o = this.config.openaiRealtime;
-    this._send({
-      type: "session.update",
-      session: {
-        output_modalities: ["text"],
-        audio: { output: { language: o.targetLangCode || "en" } },
-        instructions:
-          `Translate the user's ${this.config.sourceLangHint} speech into concise, ` +
-          `natural ${this.config.targetLang} subtitles. Output only the ${this.config.targetLang} text.`,
-      },
-    });
-  }
-
-  _send(obj) {
-    try { if (this._dc?.readyState === "open") this._dc.send(JSON.stringify(obj)); } catch (e) { console.error(e); }
-  }
 
   // Translated text arrives as output-transcript deltas over the data channel.
   // Tolerate both translate-model and general realtime event names.
@@ -122,34 +106,42 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
   }
 }
 
+// gpt-realtime-translate uses dedicated "translations" endpoints, not the generic
+// realtime ones (the generic /client_secrets rejects the translate model).
 function endpoints(o) {
   if (o.mode === "azure") {
     const origin = azureOrigin(o.azureEndpoint);
     return {
-      clientSecrets: `${origin}/openai/v1/realtime/client_secrets`,
-      calls: `${origin}/openai/v1/realtime/calls`,
+      clientSecrets: `${origin}/openai/v1/realtime/translations/client_secrets`,
+      calls: `${origin}/openai/v1/realtime/translations/calls`,
       azure: true,
     };
   }
   return {
-    clientSecrets: "https://api.openai.com/v1/realtime/client_secrets",
-    calls: "https://api.openai.com/v1/realtime/calls",
+    clientSecrets: "https://api.openai.com/v1/realtime/translations/client_secrets",
+    calls: "https://api.openai.com/v1/realtime/translations/calls",
     azure: false,
   };
 }
 
-async function mintEphemeralKey(o, ep) {
+async function mintEphemeralKey(o, ep, targetLang) {
   const model = ep.azure ? o.azureDeployment : o.model;
   const headers = { "Content-Type": "application/json" };
   // REST POST (not a websocket), so the api-key/Authorization header works here.
   if (ep.azure) headers["api-key"] = o.apiKey;
   else headers["Authorization"] = `Bearer ${o.apiKey}`;
 
-  const res = await fetch(ep.clientSecrets, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ session: { type: "realtime", model } }),
-  });
+  // Translation session: just bind the model and target output language. We omit
+  // input transcription (it would require a separate gpt-realtime-whisper
+  // deployment) since we only want the English output.
+  const body = {
+    session: {
+      model,
+      audio: { output: { language: targetLang || "en" } },
+    },
+  };
+
+  const res = await fetch(ep.clientSecrets, { method: "POST", headers, body: JSON.stringify(body) });
   if (!res.ok) {
     throw new Error(`Could not mint ephemeral key (HTTP ${res.status}): ${(await res.text().catch(() => "")).slice(0, 300)}`);
   }
