@@ -160,7 +160,11 @@ function azureCandidates(o) {
   const auth = `api-key=${encodeURIComponent(o.apiKey)}`;
   const dep = encodeURIComponent(o.azureDeployment);
   const raw = o.azureEndpoint.replace(/\/$/, "").replace(/^wss?:/, "https:");
-  const httpsBase = raw.startsWith("http") ? raw.replace(/^http:/, "https:") : `https://${raw}`;
+  const withProto = raw.startsWith("http") ? raw.replace(/^http:/, "https:") : `https://${raw}`;
+  // Use only the origin — strip any path the user pasted (e.g. ".../openai/v1")
+  // so we never build a doubled path like /openai/v1/openai/v1/realtime.
+  let httpsBase;
+  try { httpsBase = new URL(withProto).origin; } catch { httpsBase = withProto; }
   // The Foundry alias and the classic OpenAI alias both point at one resource;
   // try whichever exists.
   const hosts = new Set([
