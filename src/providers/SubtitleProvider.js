@@ -17,6 +17,13 @@ export class SubtitleProvider {
    */
   static inputSampleRate = 16000;
 
+  /**
+   * If true, the provider consumes the captured MediaStream directly (e.g. a
+   * WebRTC peer connection) and start() receives { stream }. The PCM worklet/
+   * pushAudio path is then skipped for this provider.
+   */
+  static wantsMediaStream = false;
+
   /** @param {object} config Resolved config from getConfig(). */
   constructor(config) {
     this.config = config;

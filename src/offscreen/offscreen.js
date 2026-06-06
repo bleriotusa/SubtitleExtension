@@ -56,13 +56,21 @@ async function startCaptureInner(streamId, config) {
   // (2) Keep the tab audible — capturing alone silences playback.
   source.connect(audioCtx.destination);
 
-  // (3) Build the provider; its required sample rate drives the worklet.
+  // (3) Build the provider.
   provider = createProvider(config);
   provider.onSubtitle((line) => {
     chrome.runtime.sendMessage({ type: "subtitle", line }).catch(() => {});
   });
-  const targetRate = provider.constructor.inputSampleRate || 16000;
 
+  if (provider.constructor.wantsMediaStream) {
+    // WebRTC-style provider: hand it the captured stream directly — no PCM tap.
+    await provider.start({ stream: mediaStream });
+    console.log(`[offscreen] capture started: ${config.provider} (media stream)`);
+    return;
+  }
+
+  // PCM provider: tap audio via the worklet at the provider's required rate.
+  const targetRate = provider.constructor.inputSampleRate || 16000;
   await audioCtx.audioWorklet.addModule(chrome.runtime.getURL("src/audio/worklet.js"));
   workletNode = new AudioWorkletNode(audioCtx, "capture-processor", {
     processorOptions: { targetRate },
@@ -81,7 +89,7 @@ async function startCaptureInner(streamId, config) {
 
   // Open the session BEFORE audio flows so streaming providers don't drop the
   // first frames.
-  await provider.start();
+  await provider.start({ stream: mediaStream });
   source.connect(workletNode);
 
   console.log(`[offscreen] capture started: ${config.provider} @ ${targetRate}Hz`);

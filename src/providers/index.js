@@ -4,15 +4,21 @@
 import { OpenRouterBatchProvider } from "./OpenRouterBatchProvider.js";
 import { GeminiLiveProvider } from "./GeminiLiveProvider.js";
 import { OpenAIRealtimeProvider } from "./OpenAIRealtimeProvider.js";
+import { OpenAIWebRTCProvider } from "./OpenAIWebRTCProvider.js";
 
 export const PROVIDERS = {
+  "openai-webrtc": {
+    label: "OpenAI Realtime Translate (WebRTC) — OpenAI or Azure, ~1s [recommended]",
+    ctor: OpenAIWebRTCProvider,
+    streaming: true,
+  },
   "openrouter-batch": {
     label: "OpenRouter (batch) — Gemini 3.1 Flash Lite, ~2-3s",
     ctor: OpenRouterBatchProvider,
     streaming: false,
   },
   "openai-realtime": {
-    label: "OpenAI Realtime Translate (streaming) — OpenAI or Azure, ~1s",
+    label: "OpenAI Realtime Translate (WebSocket) — server-side only, ~1s",
     ctor: OpenAIRealtimeProvider,
     streaming: true,
   },
