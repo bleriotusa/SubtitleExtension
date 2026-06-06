@@ -177,33 +177,41 @@ function azureCandidates(o) {
   return out;
 }
 
-// Probe each candidate over HTTPS to find the one that actually exists, turning
-// the opaque WS 1006 into a real diagnosis. Returns the wss:// URL to use.
+// Probe each candidate with a real websocket handshake — the only reliable test.
+// A plain GET to a WS-only route 404s even when correct, so we can't use fetch.
+// If a socket opens, host+path+key are all good; a close code tells us why not.
 async function resolveAzureUrl(o) {
-  const candidates = azureCandidates(o);
+  const wssList = azureCandidates(o).map((u) => u.replace(/^https:/, "wss:"));
   const tried = [];
-  for (const https of candidates) {
-    let res;
-    try {
-      res = await fetch(https, { method: "GET" });
-    } catch (e) {
-      tried.push(`unreachable (${shortHost(https)})`);
-      continue; // bad host/DNS
+  for (const wss of wssList) {
+    const r = await probeWs(wss);
+    if (r.ok) return wss;
+    if (r.auth) {
+      throw new Error(`Azure rejected the API key during the handshake (code ${r.code}). Check the key matches this resource.`);
     }
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(`Azure rejected the API key (HTTP ${res.status}). Check the key matches this resource.`);
-    }
-    if (res.status === 404) {
-      tried.push(`404 (${shortPath(https)})`);
-      continue; // wrong path/deployment on this host
-    }
-    // 400/426/upgrade-required/200/etc → endpoint exists and key was accepted.
-    return https.replace(/^https:/, "wss:");
+    tried.push(`${shortHost(wss)}${shortPath(wss)} → ${r.code}`);
   }
   throw new Error(
-    "Could not find the Azure realtime endpoint. Tried: " + tried.join("; ") +
+    "No candidate Azure realtime URL accepted a websocket. Tried: " + tried.join("; ") +
     ". Verify the resource host and deployment name in Foundry."
   );
+}
+
+function probeWs(url) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let ws;
+    const done = (v) => { if (!settled) { settled = true; clearTimeout(timer); try { ws && ws.close(); } catch {} resolve(v); } };
+    const timer = setTimeout(() => done({ ok: false, code: "timeout" }), 4500);
+    try { ws = new WebSocket(url); } catch { return done({ ok: false, code: "bad-url" }); }
+    ws.onopen = () => done({ ok: true });
+    ws.onclose = (ev) => done({
+      ok: false,
+      code: ev.code,
+      auth: ev.code === 1008 || ev.code === 3000 || ev.code === 4001 || ev.code === 4401,
+    });
+    ws.onerror = () => { /* close fires next with the code */ };
+  });
 }
 
 function shortHost(u) { try { return new URL(u).host; } catch { return u; } }
