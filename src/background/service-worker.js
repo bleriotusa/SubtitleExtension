@@ -33,6 +33,12 @@ async function startForActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("No active tab.");
 
+  // Release any prior capture first. A previous failed start can leave the tab's
+  // audio stream held by the offscreen doc; getMediaStreamId then rejects with
+  // "Cannot capture a tab with an active stream." Closing the offscreen document
+  // frees the stream so we always begin from a clean slate.
+  await stop();
+
   // tabCapture must be triggered from the active tab (the popup click is the gesture).
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
 

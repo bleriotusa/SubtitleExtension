@@ -32,7 +32,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 async function startCapture(streamId, config) {
   if (mediaStream) await stopCapture();
+  try {
+    await startCaptureInner(streamId, config);
+  } catch (e) {
+    // Never leave a half-open stream holding the tab captive — release it so the
+    // next Start can acquire the tab again.
+    await stopCapture();
+    throw e;
+  }
+}
 
+async function startCaptureInner(streamId, config) {
   mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: {
       mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId },
