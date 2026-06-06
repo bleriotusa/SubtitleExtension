@@ -32,8 +32,12 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
     const track = stream?.getAudioTracks?.()[0];
     if (!track) throw new Error("No audio track in the captured stream.");
 
-    const ep = endpoints(o);
-    const ephemeralKey = await mintEphemeralKey(o, ep, o.targetLangCode);
+    // Mint the ephemeral key + learn the matching calls URL. Azure routing varies
+    // by host/path, so probe; OpenAI-direct is a single fixed endpoint.
+    const { ephemeralKey, callsUrl } =
+      o.mode === "azure"
+        ? await resolveAzureSession(o, o.targetLangCode)
+        : await mintOpenAI(o, o.targetLangCode);
 
     const pc = new RTCPeerConnection();
     this._pc = pc;
@@ -58,7 +62,7 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    const sdpRes = await fetch(ep.calls, {
+    const sdpRes = await fetch(callsUrl, {
       method: "POST",
       body: offer.sdp,
       headers: { Authorization: `Bearer ${ephemeralKey}`, "Content-Type": "application/sdp" },
@@ -106,60 +110,86 @@ export class OpenAIWebRTCProvider extends SubtitleProvider {
   }
 }
 
-// gpt-realtime-translate uses dedicated "translations" endpoints, not the generic
-// realtime ones (the generic /client_secrets rejects the translate model).
-function endpoints(o) {
-  if (o.mode === "azure") {
-    const origin = azureOrigin(o.azureEndpoint);
-    // Azure's v1 API needs api-version=preview to reach the (preview) realtime
-    // translations surface; without it the deployment resolves in the wrong scope
-    // and returns DeploymentNotFound.
-    const v = "?api-version=preview";
-    return {
-      clientSecrets: `${origin}/openai/v1/realtime/translations/client_secrets${v}`,
-      calls: `${origin}/openai/v1/realtime/translations/calls${v}`,
-      azure: true,
-    };
-  }
-  return {
-    clientSecrets: "https://api.openai.com/v1/realtime/translations/client_secrets",
-    calls: "https://api.openai.com/v1/realtime/translations/calls",
-    azure: false,
-  };
+function sessionBody(model, targetLang) {
+  // Translation session: bind the model and target output language. Input
+  // transcription is omitted (it would need a separate gpt-realtime-whisper
+  // deployment); we only want the English output.
+  return JSON.stringify({ session: { model, audio: { output: { language: targetLang || "en" } } } });
 }
 
-async function mintEphemeralKey(o, ep, targetLang) {
-  const model = ep.azure ? o.azureDeployment : o.model;
-  const headers = { "Content-Type": "application/json" };
-  // REST POST (not a websocket), so the api-key/Authorization header works here.
-  if (ep.azure) headers["api-key"] = o.apiKey;
-  else headers["Authorization"] = `Bearer ${o.apiKey}`;
+function extractKey(data) {
+  return data.value ?? data.client_secret?.value ?? data.client_secret ?? null;
+}
 
-  // Translation session: just bind the model and target output language. We omit
-  // input transcription (it would require a separate gpt-realtime-whisper
-  // deployment) since we only want the English output.
-  const body = {
-    session: {
-      model,
-      audio: { output: { language: targetLang || "en" } },
-    },
-  };
-
-  const res = await fetch(ep.clientSecrets, { method: "POST", headers, body: JSON.stringify(body) });
+// OpenAI-direct: a single fixed pair of endpoints.
+async function mintOpenAI(o, targetLang) {
+  const res = await fetch("https://api.openai.com/v1/realtime/translations/client_secrets", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${o.apiKey}`, "Content-Type": "application/json" },
+    body: sessionBody(o.model, targetLang),
+  });
   if (!res.ok) {
     throw new Error(`Could not mint ephemeral key (HTTP ${res.status}): ${(await res.text().catch(() => "")).slice(0, 300)}`);
   }
-  const data = await res.json();
-  const key = data.value ?? data.client_secret?.value ?? data.client_secret;
+  const key = extractKey(await res.json());
   if (!key) throw new Error("Ephemeral key response had no 'value'.");
-  return key;
+  return { ephemeralKey: key, callsUrl: "https://api.openai.com/v1/realtime/translations/calls" };
 }
 
-function azureOrigin(endpoint) {
-  if (!endpoint) throw new Error("Azure endpoint not set (see Settings).");
-  const withProto = /^https?:/.test(endpoint) ? endpoint : `https://${endpoint}`;
-  let origin;
-  try { origin = new URL(withProto).origin; } catch { origin = withProto.replace(/\/+$/, ""); }
-  // Realtime/REST lives on the OpenAI alias, not the Foundry services alias.
-  return origin.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com");
+// Azure: deployment routing varies by host (Foundry services alias vs OpenAI
+// alias) and URL style (v1 model-in-body vs deployment-in-path). Probe the mint
+// call across the combinations and keep the one that returns a key, along with
+// the matching calls URL so the SDP exchange uses the same route.
+async function resolveAzureSession(o, targetLang) {
+  if (!o.azureEndpoint) throw new Error("Azure endpoint not set (see Settings).");
+  if (!o.azureDeployment) throw new Error("Azure deployment name not set (see Settings).");
+
+  const origin = azureOriginRaw(o.azureEndpoint);
+  const openaiHost = origin.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com");
+  const hosts = [...new Set([origin, openaiHost])]; // Foundry host first
+  const dep = encodeURIComponent(o.azureDeployment);
+  const v = "api-version=preview";
+  const styles = [
+    (h) => ({
+      cs: `${h}/openai/v1/realtime/translations/client_secrets?${v}`,
+      calls: `${h}/openai/v1/realtime/translations/calls?${v}`,
+    }),
+    (h) => ({
+      cs: `${h}/openai/deployments/${dep}/realtime/translations/client_secrets?${v}`,
+      calls: `${h}/openai/deployments/${dep}/realtime/translations/calls?${v}`,
+    }),
+  ];
+  const headers = { "api-key": o.apiKey, "Content-Type": "application/json" };
+  const body = sessionBody(o.azureDeployment, targetLang);
+
+  const tried = [];
+  for (const h of hosts) {
+    for (const mk of styles) {
+      const { cs, calls } = mk(h);
+      let res;
+      try {
+        res = await fetch(cs, { method: "POST", headers, body });
+      } catch {
+        tried.push(`${shortHost(cs)}${shortPath(cs)} → unreachable`);
+        continue;
+      }
+      if (res.ok) {
+        const key = extractKey(await res.json().catch(() => ({})));
+        if (key) return { ephemeralKey: key, callsUrl: calls };
+        tried.push(`${shortPath(cs)} → 200 but no key`);
+      } else {
+        const snippet = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 100);
+        tried.push(`${shortHost(cs)}${shortPath(cs)} → ${res.status} ${snippet}`);
+      }
+    }
+  }
+  throw new Error("Could not create the Azure translation session. Tried: " + tried.join("  |  "));
 }
+
+function azureOriginRaw(endpoint) {
+  const withProto = /^https?:/.test(endpoint) ? endpoint : `https://${endpoint}`;
+  try { return new URL(withProto).origin; } catch { return withProto.replace(/\/+$/, ""); }
+}
+
+function shortHost(u) { try { return new URL(u).host; } catch { return u; } }
+function shortPath(u) { try { return new URL(u).pathname; } catch { return u; } }
