@@ -18,7 +18,9 @@
     "https://api.openai.com/*",
     "wss://api.openai.com/*",
     "https://*.openai.azure.com/*",
-    "wss://*.openai.azure.com/*"
+    "wss://*.openai.azure.com/*",
+    "https://*.services.ai.azure.com/*",
+    "wss://*.services.ai.azure.com/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js",
