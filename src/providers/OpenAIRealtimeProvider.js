@@ -141,14 +141,17 @@ function buildEndpoint(o) {
     if (!o.azureEndpoint || !o.azureDeployment) {
       throw new Error("Azure realtime needs azureEndpoint and azureDeployment (see Settings).");
     }
-    const base = o.azureEndpoint.replace(/^https?:/, "wss:").replace(/\/$/, "");
-    // Azure GA "v1" realtime path: /openai/v1/realtime?api-version=preview&model=<deployment>.
-    // api-version is the literal "preview" keyword (or a dated version), never the
-    // model snapshot date. Browser auth: the api-key MUST be a query parameter (the
-    // header isn't settable from a browser websocket); WSS encrypts the query.
+    // Realtime answers on *.openai.azure.com, not the Foundry *.services.ai.azure.com
+    // alias — rewrite it so either pasted endpoint works.
+    const base = o.azureEndpoint
+      .replace(/^https?:/, "wss:")
+      .replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com")
+      .replace(/\/$/, "");
+    // GA "v1" realtime URL: ONLY model=<deployment>. Do NOT add api-version —
+    // mixing the GA path with the preview api-version/deployment params is a 404.
+    // Browser auth: api-key as a query param (WSS encrypts it).
     const url =
-      `${base}/openai/v1/realtime?api-version=${encodeURIComponent(o.azureApiVersion || "preview")}` +
-      `&model=${encodeURIComponent(o.azureDeployment)}` +
+      `${base}/openai/v1/realtime?model=${encodeURIComponent(o.azureDeployment)}` +
       `&api-key=${encodeURIComponent(o.apiKey)}`;
     return { url, protocols: undefined };
   }
