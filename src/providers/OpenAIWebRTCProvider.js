@@ -150,25 +150,25 @@ async function resolveAzureSession(o, targetLang) {
   const servicesHost = origin.replace(/\.openai\.azure\.com/i, ".services.ai.azure.com");
   const openaiHost = origin.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com");
   const hosts = [...new Set([servicesHost, origin, openaiHost])]; // Foundry host first
-  const dep = encodeURIComponent(o.azureDeployment);
-  const v = "api-version=preview";
-  const styles = [
-    (h) => ({
-      cs: `${h}/openai/v1/realtime/translations/client_secrets?${v}`,
-      calls: `${h}/openai/v1/realtime/translations/calls?${v}`,
-    }),
-    (h) => ({
-      cs: `${h}/openai/deployments/${dep}/realtime/translations/client_secrets?${v}`,
-      calls: `${h}/openai/deployments/${dep}/realtime/translations/calls?${v}`,
-    }),
-  ];
+  // The generic v1 endpoint resolved this deployment with NO api-version, but
+  // ?api-version=preview made it DeploymentNotFound — so try no-version first.
+  const versions = ["", "preview", "2025-04-01-preview"];
+  const candidates = [];
+  for (const h of hosts) {
+    for (const ver of versions) {
+      const q = ver ? `?api-version=${ver}` : "";
+      candidates.push({
+        cs: `${h}/openai/v1/realtime/translations/client_secrets${q}`,
+        calls: `${h}/openai/v1/realtime/translations/calls${q}`,
+      });
+    }
+  }
   const headers = { "api-key": o.apiKey, "Content-Type": "application/json" };
   const body = sessionBody(o.azureDeployment, targetLang);
 
   const tried = [];
-  for (const h of hosts) {
-    for (const mk of styles) {
-      const { cs, calls } = mk(h);
+  {
+    for (const { cs, calls } of candidates) {
       let res;
       try {
         res = await fetch(cs, { method: "POST", headers, body });
