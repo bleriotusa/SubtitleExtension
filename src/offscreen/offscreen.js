@@ -7,7 +7,6 @@
 //   3. Feed PCM frames from the worklet into the active SubtitleProvider.
 //   4. Relay emitted subtitle lines to the service worker (-> content overlay).
 
-import { getConfig } from "../config.js";
 import { createProvider } from "../providers/index.js";
 
 let audioCtx = null;
@@ -18,7 +17,7 @@ let workletNode = null;
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.target !== "offscreen") return;
   if (msg.type === "start-capture") {
-    startCapture(msg.streamId)
+    startCapture(msg.streamId, msg.config)
       .then(() => sendResponse({ ok: true }))
       .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
     return true; // async response
@@ -31,10 +30,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-async function startCapture(streamId) {
+async function startCapture(streamId, config) {
   if (mediaStream) await stopCapture();
-
-  const config = await getConfig();
 
   mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: {

@@ -5,6 +5,8 @@
 // State that must survive a service-worker restart lives in chrome.storage
 // .session; the actual capture keeps running in the offscreen document.
 
+import { getConfig } from "../config.js";
+
 const OFFSCREEN_PATH = "src/offscreen/offscreen.html";
 const SESSION_KEY = "qqls.capturingTabId";
 
@@ -34,8 +36,12 @@ async function startForActiveTab() {
   // tabCapture must be triggered from the active tab (the popup click is the gesture).
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
 
+  // Read config here — service workers have guaranteed chrome.storage access.
+  // Passing it avoids any storage API availability questions in the offscreen doc.
+  const config = await getConfig();
+
   await ensureOffscreen();
-  const res = await chrome.runtime.sendMessage({ target: "offscreen", type: "start-capture", streamId });
+  const res = await chrome.runtime.sendMessage({ target: "offscreen", type: "start-capture", streamId, config });
   if (!res?.ok) throw new Error(res?.error || "Offscreen failed to start capture.");
 
   await chrome.storage.session.set({ [SESSION_KEY]: tab.id });
