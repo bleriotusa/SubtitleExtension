@@ -35,7 +35,12 @@ export class OpenAIRealtimeProvider extends SubtitleProvider {
     const o = this.config.openaiRealtime;
     if (!o.apiKey) throw new Error("OpenAI/Azure API key not set for the realtime backend.");
 
-    const { url, protocols } = buildEndpoint(o);
+    // For Azure, probe candidate URLs over plain HTTPS first. A websocket reports
+    // every failed upgrade as an opaque code 1006; a fetch returns the real HTTP
+    // status (401 auth, 404 wrong path/host), and the extension's host permissions
+    // let us read it cross-origin. The reachable candidate is used for the WS.
+    const { url, protocols } =
+      o.mode === "azure" ? { url: await resolveAzureUrl(o), protocols: undefined } : buildEndpoint(o);
 
     await new Promise((resolve, reject) => {
       const ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
@@ -137,24 +142,6 @@ export class OpenAIRealtimeProvider extends SubtitleProvider {
 }
 
 function buildEndpoint(o) {
-  if (o.mode === "azure") {
-    if (!o.azureEndpoint || !o.azureDeployment) {
-      throw new Error("Azure realtime needs azureEndpoint and azureDeployment (see Settings).");
-    }
-    // Realtime answers on *.openai.azure.com, not the Foundry *.services.ai.azure.com
-    // alias — rewrite it so either pasted endpoint works.
-    const base = o.azureEndpoint
-      .replace(/^https?:/, "wss:")
-      .replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com")
-      .replace(/\/$/, "");
-    // GA "v1" realtime URL: ONLY model=<deployment>. Do NOT add api-version —
-    // mixing the GA path with the preview api-version/deployment params is a 404.
-    // Browser auth: api-key as a query param (WSS encrypts it).
-    const url =
-      `${base}/openai/v1/realtime?model=${encodeURIComponent(o.azureDeployment)}` +
-      `&api-key=${encodeURIComponent(o.apiKey)}`;
-    return { url, protocols: undefined };
-  }
   // OpenAI direct: browser websockets can't set the Authorization header, so the
   // key rides in the "openai-insecure-api-key" subprotocol (key is client-side).
   const url = `${o.openaiBaseUrl}?model=${encodeURIComponent(o.model)}`;
@@ -163,6 +150,64 @@ function buildEndpoint(o) {
     protocols: ["realtime", `openai-insecure-api-key.${o.apiKey}`, "openai-beta.realtime-v1"],
   };
 }
+
+// Azure host/path combos vary (Foundry vs classic OpenAI resource; GA vs preview
+// realtime path). Generate the plausible URLs; the query carries the api-key.
+function azureCandidates(o) {
+  if (!o.azureEndpoint || !o.azureDeployment) {
+    throw new Error("Azure realtime needs azureEndpoint and azureDeployment (see Settings).");
+  }
+  const auth = `api-key=${encodeURIComponent(o.apiKey)}`;
+  const dep = encodeURIComponent(o.azureDeployment);
+  const raw = o.azureEndpoint.replace(/\/$/, "").replace(/^wss?:/, "https:");
+  const httpsBase = raw.startsWith("http") ? raw.replace(/^http:/, "https:") : `https://${raw}`;
+  // The Foundry alias and the classic OpenAI alias both point at one resource;
+  // try whichever exists.
+  const hosts = new Set([
+    httpsBase,
+    httpsBase.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com"),
+    httpsBase.replace(/\.openai\.azure\.com/i, ".services.ai.azure.com"),
+  ]);
+  const paths = [
+    `/openai/v1/realtime?model=${dep}&${auth}`,                                  // GA
+    `/openai/realtime?api-version=2025-04-01-preview&deployment=${dep}&${auth}`, // preview
+  ];
+  const out = [];
+  for (const h of hosts) for (const p of paths) out.push(`${h}${p}`);
+  return out;
+}
+
+// Probe each candidate over HTTPS to find the one that actually exists, turning
+// the opaque WS 1006 into a real diagnosis. Returns the wss:// URL to use.
+async function resolveAzureUrl(o) {
+  const candidates = azureCandidates(o);
+  const tried = [];
+  for (const https of candidates) {
+    let res;
+    try {
+      res = await fetch(https, { method: "GET" });
+    } catch (e) {
+      tried.push(`unreachable (${shortHost(https)})`);
+      continue; // bad host/DNS
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`Azure rejected the API key (HTTP ${res.status}). Check the key matches this resource.`);
+    }
+    if (res.status === 404) {
+      tried.push(`404 (${shortPath(https)})`);
+      continue; // wrong path/deployment on this host
+    }
+    // 400/426/upgrade-required/200/etc → endpoint exists and key was accepted.
+    return https.replace(/^https:/, "wss:");
+  }
+  throw new Error(
+    "Could not find the Azure realtime endpoint. Tried: " + tried.join("; ") +
+    ". Verify the resource host and deployment name in Foundry."
+  );
+}
+
+function shortHost(u) { try { return new URL(u).host; } catch { return u; } }
+function shortPath(u) { try { return new URL(u).pathname; } catch { return u; } }
 
 // Map common websocket close codes to a likely cause for this API.
 function closeHint(code, mode) {
