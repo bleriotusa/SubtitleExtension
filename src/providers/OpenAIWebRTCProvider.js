@@ -154,33 +154,31 @@ async function resolveAzureSession(o, targetLang) {
   const servicesHost = origin.replace(/\.openai\.azure\.com/i, ".services.ai.azure.com");
   const openaiHost = origin.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com");
   const hosts = [...new Set([openaiHost, origin, servicesHost])];
-  // Azure mints the translate key on the GENERIC realtime endpoint (where the
-  // deployment resolves), with session.type = "translation" — NOT the
-  // /translations/ sub-path (which 404s on Azure) and NO api-version (GA).
-  const candidates = hosts.map((h) => ({
-    cs: `${h}/openai/v1/realtime/client_secrets`,
-    calls: `${h}/openai/v1/realtime/calls`,
-  }));
+  // Azure mints the translate key on the GENERIC realtime endpoint (the deployment
+  // resolves there). The session.type for a translate session is undocumented and
+  // "translation" is rejected (InvalidSessionType), so try the candidate types.
   const headers = { "api-key": o.apiKey, "Content-Type": "application/json" };
-  const body = sessionBody(o.azureDeployment, targetLang, "translation");
+  const sessionTypes = ["transcription", "translation"];
 
   const tried = [];
-  {
-    for (const { cs, calls } of candidates) {
+  for (const h of hosts) {
+    const cs = `${h}/openai/v1/realtime/client_secrets`;
+    const calls = `${h}/openai/v1/realtime/calls`;
+    for (const type of sessionTypes) {
       let res;
       try {
-        res = await fetch(cs, { method: "POST", headers, body });
+        res = await fetch(cs, { method: "POST", headers, body: sessionBody(o.azureDeployment, targetLang, type) });
       } catch {
-        tried.push(`${shortHost(cs)}${shortPath(cs)} → unreachable`);
+        tried.push(`${shortHost(cs)} [${type}] → unreachable`);
         continue;
       }
       if (res.ok) {
         const key = extractKey(await res.json().catch(() => ({})));
         if (key) return { ephemeralKey: key, callsUrl: calls };
-        tried.push(`${shortPath(cs)} → 200 but no key`);
+        tried.push(`[${type}] → 200 but no key`);
       } else {
-        const snippet = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 100);
-        tried.push(`${shortHost(cs)}${shortPath(cs)} → ${res.status} ${snippet}`);
+        const snippet = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 90);
+        tried.push(`${shortHost(cs)} [${type}] → ${res.status} ${snippet}`);
       }
     }
   }
