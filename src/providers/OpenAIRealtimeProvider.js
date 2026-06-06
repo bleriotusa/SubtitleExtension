@@ -168,9 +168,11 @@ function azureCandidates(o) {
     httpsBase.replace(/\.services\.ai\.azure\.com/i, ".openai.azure.com"),
     httpsBase.replace(/\.openai\.azure\.com/i, ".services.ai.azure.com"),
   ]);
+  // Preview path with several known realtime api-versions, plus the GA path.
+  const apiVersions = ["2024-10-01-preview", "2025-04-01-preview", "2025-08-28"];
   const paths = [
-    `/openai/v1/realtime?model=${dep}&${auth}`,                                  // GA
-    `/openai/realtime?api-version=2025-04-01-preview&deployment=${dep}&${auth}`, // preview
+    ...apiVersions.map((v) => `/openai/realtime?api-version=${v}&deployment=${dep}&${auth}`),
+    `/openai/v1/realtime?model=${dep}&${auth}`, // GA
   ];
   const out = [];
   for (const h of hosts) for (const p of paths) out.push(`${h}${p}`);
