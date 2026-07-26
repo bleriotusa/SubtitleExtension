@@ -27,3 +27,9 @@
 #qqls-overlay.qqls-hidden {
   display: none;
 }
+
+/* TVer's player is Video.js-based. Hide only its native timed-text layer while
+   our English overlay is active; leave controls and all other Japanese UI alone. */
+html.qqls-hide-native-tver-captions .video-js .vjs-text-track-display {
+  display: none !important;
+}

@@ -10,6 +10,8 @@
       legend { font-weight: 600; padding: 0 6px; }
       label { display: block; margin: 10px 0 4px; font-weight: 500; }
       input, select { width: 100%; padding: 7px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+      .checkbox { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+      .checkbox input { width: auto; margin: 0; }
       .hint { color: #777; font-size: 12px; margin-top: 4px; }
       .inline { display: flex; gap: 12px; }
       .inline > div { flex: 1; }
@@ -54,6 +56,10 @@
       <input id="tt-deepl-key" type="password" placeholder="DeepL API Free or paid key" />
       <label for="tt-batch">Context batch size (caption cues)</label>
       <input id="tt-batch" type="number" min="10" max="60" step="5" />
+      <label class="checkbox" for="tt-hide-native">
+        <input id="tt-hide-native" type="checkbox" />
+        Hide TVer's Japanese captions while English subtitles are active
+      </label>
       <p class="hint"><code>gpt-5.6-terra</code> is the recommended quality/latency
         balance for drama dialogue. OpenRouter text translation reuses the OpenRouter
         key below; choose a model that supports structured outputs. Direct

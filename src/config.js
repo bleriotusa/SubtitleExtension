@@ -49,6 +49,7 @@ export const DEFAULT_CONFIG = {
     geminiModel: "gemini-3.5-flash-lite",
     deeplApiKey: "",
     batchSize: 30,
+    hideNativeCaptions: false,
   },
 
   // Audio chunking (batch providers only). Smaller = lower lag, worse accuracy.

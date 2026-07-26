@@ -61,7 +61,8 @@ For TVer, open an episode and click **Start subtitles**. Start playback so TVer
 loads its Japanese caption track; the extension translates roughly 90 seconds
 ahead while preserving TVer's cue timing. The recommended default is
 `gpt-5.6-terra` with reasoning disabled, using batches of neighboring cues for
-drama context.
+drama context. Settings can optionally hide TVer's native Japanese caption layer
+while the English overlay is active.
 
 ### TVer text engines
 

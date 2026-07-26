@@ -46,6 +46,7 @@ async function load() {
   $("tt-gemini-model").value = c.textTranslation.geminiModel;
   $("tt-deepl-key").value = c.textTranslation.deeplApiKey;
   $("tt-batch").value = c.textTranslation.batchSize;
+  $("tt-hide-native").checked = c.textTranslation.hideNativeCaptions;
   $("chunk").value = c.chunkMs;
   $("font").value = c.fontSize;
   updateHint();
@@ -74,6 +75,7 @@ $("save").addEventListener("click", async () => {
       geminiModel: $("tt-gemini-model").value.trim(),
       deeplApiKey: $("tt-deepl-key").value.trim(),
       batchSize: Math.max(10, Math.min(60, Number($("tt-batch").value) || 30)),
+      hideNativeCaptions: $("tt-hide-native").checked,
     },
     chunkMs: Number($("chunk").value) || 3000,
     fontSize: Number($("font").value) || 28,

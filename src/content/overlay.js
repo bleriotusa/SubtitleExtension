@@ -15,7 +15,7 @@
   if (isTver && window !== window.top) return;
 
   const STORAGE_KEY = "qqls.config";
-  const DEFAULTS = { fontSize: 28 };
+  const DEFAULTS = { fontSize: 28, hideNativeTverCaptions: false };
 
   let root = null;
   let committed = []; // array of strings
@@ -26,7 +26,20 @@
   chrome.storage.local.get(STORAGE_KEY).then((v) => {
     const o = v?.[STORAGE_KEY] ?? {};
     if (o.fontSize) settings.fontSize = o.fontSize;
+    settings.hideNativeTverCaptions = Boolean(o.textTranslation?.hideNativeCaptions);
     if (root) applySettings();
+    syncNativeCaptionVisibility();
+  });
+
+  chrome.storage.onChanged?.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes[STORAGE_KEY]) return;
+    const next = changes[STORAGE_KEY].newValue ?? {};
+    if (next.fontSize) settings.fontSize = next.fontSize;
+    settings.hideNativeTverCaptions = Boolean(
+      next.textTranslation?.hideNativeCaptions
+    );
+    applySettings();
+    syncNativeCaptionVisibility();
   });
 
   function ensureRoot() {
@@ -46,6 +59,14 @@
 
   function applySettings() {
     if (root) root.style.fontSize = `${settings.fontSize}px`;
+  }
+
+  function syncNativeCaptionVisibility() {
+    if (!isTver) return;
+    document.documentElement.classList.toggle(
+      "qqls-hide-native-tver-captions",
+      Boolean(tverState && settings.hideNativeTverCaptions)
+    );
   }
 
   function render() {
@@ -107,6 +128,7 @@
       retryAfter: 0,
       lastText: "",
     };
+    syncNativeCaptionVisibility();
 
     scanTverResources();
     if (typeof PerformanceObserver !== "undefined") {
@@ -135,6 +157,7 @@
       }
     }).catch(() => {});
     tverState = null;
+    syncNativeCaptionVisibility();
   }
 
   function scanTverResources() {
