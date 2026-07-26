@@ -262,9 +262,20 @@
       const text = /^[\s♬♪〜～ー…・]+$/.test(cue.text)
         ? ""
         : await translator.translate(cue.text);
-      translations.push({ id: cue.id, text });
+      translations.push({
+        id: cue.id,
+        text: normalizeSubtitlePunctuation(cue.text, text),
+      });
     }
     return translations;
+  }
+
+  function normalizeSubtitlePunctuation(source, translation) {
+    const text = translation.trim();
+    if (!text || /[。．.!！?？…‥]([」』”’"'）)\]】〉》]*)$/.test(source.trim())) {
+      return text;
+    }
+    return text.replace(/(^|[^.])\.([”’"'）)\]】〉》]*)$/, "$1$2");
   }
 
   async function getEdgeTranslator(state) {

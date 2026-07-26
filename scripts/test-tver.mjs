@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { parseWebVtt } from "../src/tver/vtt.js";
-import { translateTverCues } from "../src/tver/translator.js";
+import {
+  normalizeSubtitlePunctuation,
+  translateTverCues,
+} from "../src/tver/translator.js";
 
 const cues = parseWebVtt(`WEBVTT
 X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000
@@ -50,8 +53,8 @@ try {
   }, cues);
 
   assert.deepEqual(translated, [
-    { id: 0, text: "This will do." },
-    { id: 1, text: "Oh, hello." },
+    { id: 0, text: "This will do" },
+    { id: 1, text: "Oh, hello" },
   ]);
   assert.equal(request.model, "gpt-5.6-terra");
   assert.deepEqual(request.reasoning, { effort: "none" });
@@ -91,8 +94,8 @@ try {
   }, cues);
 
   assert.deepEqual(openrouterTranslated, [
-    { id: 0, text: "That should work." },
-    { id: 1, text: "Oh, hello." },
+    { id: 0, text: "That should work" },
+    { id: 1, text: "Oh, hello" },
   ]);
   assert.equal(request.model, "anthropic/claude-haiku-4.5");
   assert.equal(request.response_format.type, "json_schema");
@@ -128,8 +131,8 @@ try {
   }, cues);
 
   assert.deepEqual(geminiTranslated, [
-    { id: 0, text: "This should be fine." },
-    { id: 1, text: "Oh, hi." },
+    { id: 0, text: "This should be fine" },
+    { id: 1, text: "Oh, hi" },
   ]);
   assert.equal(request.generationConfig.responseMimeType, "application/json");
   assert.equal(request.generationConfig.responseJsonSchema.type, "object");
@@ -154,12 +157,15 @@ try {
   }, cues);
 
   assert.deepEqual(deeplTranslated, [
-    { id: 0, text: "This is fine." },
-    { id: 1, text: "Oh, hello." },
+    { id: 0, text: "This is fine" },
+    { id: 1, text: "Oh, hello" },
   ]);
   assert.equal(request.source_lang, "JA");
   assert.equal(request.target_lang, "EN-US");
   assert.match(request.context, /これでいい/);
+  assert.equal(normalizeSubtitlePunctuation("本当？", "Really?"), "Really?");
+  assert.equal(normalizeSubtitlePunctuation("「そうだ」", "\"That's right.\""), "\"That's right\"");
+  assert.equal(normalizeSubtitlePunctuation("まさか", "No..."), "No...");
 } finally {
   globalThis.fetch = originalFetch;
 }

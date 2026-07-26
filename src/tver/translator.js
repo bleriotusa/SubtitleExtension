@@ -4,8 +4,10 @@ const TRANSLATION_INSTRUCTIONS =
   "jokes, and dramatic intent. Preserve plot details and do not censor. Return exactly " +
   "one result for every input cue, with the same integer id and in the same order. Do " +
   "not merge cues. Remove redundant speaker labels, but retain a short label when it is " +
-  "needed to distinguish overlapping or off-screen speakers. Return an empty string for " +
-  "music or sound-only cues; translate actual sung lyrics.";
+  "needed to distinguish overlapping or off-screen speakers. Match the source cue's " +
+  "terminal punctuation; do not add a period when the source has no sentence-ending " +
+  "punctuation. Return an empty string for music or sound-only cues; translate actual " +
+  "sung lyrics.";
 
 const TRANSLATION_SCHEMA = {
   type: "object",
@@ -254,5 +256,21 @@ function validateTranslations(translations, cues, provider) {
   if (result.length !== cues.length || new Set(result.map((item) => item.id)).size !== cues.length) {
     throw new Error(`${provider} returned missing or duplicate caption cue ids.`);
   }
-  return result;
+  const sourceById = new Map(cues.map((cue) => [cue.id, cue.text]));
+  return result.map((item) => ({
+    ...item,
+    text: normalizeSubtitlePunctuation(sourceById.get(item.id), item.text),
+  }));
+}
+
+export function normalizeSubtitlePunctuation(source, translation) {
+  const text = translation.trim();
+  if (!text || hasTerminalPunctuation(source)) return text;
+  // Drop one model-added full stop, including before a closing quote/bracket.
+  // Do not damage an intentional English ellipsis.
+  return text.replace(/(^|[^.])\.([”’"'）)\]】〉》]*)$/, "$1$2");
+}
+
+function hasTerminalPunctuation(source) {
+  return /[。．.!！?？…‥]([」』”’"'）)\]】〉》]*)$/.test(source.trim());
 }
