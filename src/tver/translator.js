@@ -36,7 +36,9 @@ export async function translateTverCues(config, cues, context = []) {
   };
 
   let translations;
-  if (settings.provider === "gemini") {
+  if (settings.provider === "openrouter") {
+    translations = await translateWithOpenRouter(config, input);
+  } else if (settings.provider === "gemini") {
     translations = await translateWithGemini(config, input);
   } else if (settings.provider === "deepl") {
     translations = await translateWithDeepL(config, input);
@@ -46,6 +48,57 @@ export async function translateTverCues(config, cues, context = []) {
     translations = await translateWithOpenAI(config, input);
   }
   return validateTranslations(translations, cues, settings.provider || "openai");
+}
+
+async function translateWithOpenRouter(config, input) {
+  const settings = config.textTranslation;
+  const apiKey = config.openrouter?.apiKey;
+  const model = settings.openrouterModel || config.openrouter?.model;
+  if (!apiKey) {
+    throw new Error(
+      "OpenRouter API key not set for TVer text translation (open extension Settings)."
+    );
+  }
+  if (!model) throw new Error("OpenRouter text-translation model is not set.");
+
+  const baseUrl = (config.openrouter.baseUrl || "https://openrouter.ai/api/v1")
+    .replace(/\/+$/, "");
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "X-Title": "Live Subtitle Translator",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: TRANSLATION_INSTRUCTIONS },
+        { role: "user", content: JSON.stringify(input) },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "subtitle_translations",
+          strict: true,
+          schema: TRANSLATION_SCHEMA,
+        },
+      },
+      provider: { require_parameters: true },
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `OpenRouter text translation with ${model} failed (${res.status}): ${await res.text()}`
+    );
+  }
+
+  const json = await res.json();
+  const outputText = json.choices?.[0]?.message?.content;
+  if (typeof outputText !== "string" || !outputText) {
+    throw new Error(`OpenRouter model ${model} returned no translated text.`);
+  }
+  return JSON.parse(outputText)?.translations;
 }
 
 async function translateWithOpenAI(config, input) {

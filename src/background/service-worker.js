@@ -57,6 +57,11 @@ async function startForActiveTab() {
     const textKey = config.textTranslation.apiKey ||
       (config.openaiRealtime.mode === "openai" ? config.openaiRealtime.apiKey : "");
     const geminiKey = config.textTranslation.geminiApiKey || config.geminiLive.apiKey;
+    if (textProvider === "openrouter" && !config.openrouter.apiKey) {
+      throw new Error(
+        "OpenRouter API key not set for TVer text translation (open extension Settings)."
+      );
+    }
     if (textProvider === "openai" && !textKey) {
       throw new Error(
         "OpenAI API key not set for TVer text translation (open extension Settings)."
@@ -72,7 +77,7 @@ async function startForActiveTab() {
         "DeepL API key not set for TVer text translation (open extension Settings)."
       );
     }
-    if (!["openai", "gemini", "deepl", "edge"].includes(textProvider)) {
+    if (!["openai", "openrouter", "gemini", "deepl", "edge"].includes(textProvider)) {
       throw new Error(`Unknown TVer text-translation engine: ${textProvider}`);
     }
     await chrome.storage.session.set({ [SESSION_KEY]: tab.id });

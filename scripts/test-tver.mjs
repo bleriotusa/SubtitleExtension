@@ -59,6 +59,46 @@ try {
   assert.equal(request.text.format.type, "json_schema");
   assert.equal(request.text.format.strict, true);
 
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(init.headers.Authorization, "Bearer sk-or-test");
+    request = JSON.parse(init.body);
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            translations: [
+              { id: 0, text: "That should work." },
+              { id: 1, text: "Oh, hello." },
+            ],
+          }),
+        },
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  const openrouterTranslated = await translateTverCues({
+    textTranslation: {
+      provider: "openrouter",
+      openrouterModel: "anthropic/claude-haiku-4.5",
+      batchSize: 30,
+    },
+    openrouter: {
+      apiKey: "sk-or-test",
+      model: "fallback/model",
+      baseUrl: "https://openrouter.ai/api/v1",
+    },
+  }, cues);
+
+  assert.deepEqual(openrouterTranslated, [
+    { id: 0, text: "That should work." },
+    { id: 1, text: "Oh, hello." },
+  ]);
+  assert.equal(request.model, "anthropic/claude-haiku-4.5");
+  assert.equal(request.response_format.type, "json_schema");
+  assert.equal(request.response_format.json_schema.strict, true);
+  assert.equal(request.provider.require_parameters, true);
+
   globalThis.fetch = async (_url, init) => {
     request = JSON.parse(init.body);
     return new Response(JSON.stringify({

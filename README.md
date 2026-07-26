@@ -68,6 +68,7 @@ drama context.
 | Engine | Cost | Context | Notes |
 |---|---:|---|---|
 | OpenAI `gpt-5.6-terra` | Paid | 30-cue batches | Recommended for natural drama dialogue. |
+| OpenRouter | Model-dependent | 30-cue batches | Reuses the OpenRouter key; enter any model ID that supports structured outputs. |
 | Gemini `gemini-3.5-flash-lite` | Free tier / paid | 30-cue batches | Best free contextual option; free-tier data may be used to improve Google products. |
 | DeepL API | 500k characters/month free | Shared dialogue context | Strong dedicated translation with unbilled context; less adaptable than an LLM. |
 | Edge on-device Translator | Free | One cue at a time | Fast, private, and offline after download; requires Edge 148+ and is more literal. |

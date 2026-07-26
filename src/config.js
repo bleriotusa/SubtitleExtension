@@ -40,9 +40,11 @@ export const DEFAULT_CONFIG = {
   // TVer exposes timed Japanese WebVTT captions. Translate those directly
   // instead of transcribing audio.
   textTranslation: {
-    provider: "openai", // "openai" | "gemini" | "deepl" | "edge"
+    provider: "openai", // "openai" | "openrouter" | "gemini" | "deepl" | "edge"
     apiKey: "",
     model: "gpt-5.6-terra",
+    // Uses the key and endpoint from the top-level openrouter block.
+    openrouterModel: "google/gemini-3.1-flash-lite",
     geminiApiKey: "",
     geminiModel: "gemini-3.5-flash-lite",
     deeplApiKey: "",

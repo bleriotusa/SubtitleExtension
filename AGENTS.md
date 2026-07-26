@@ -76,9 +76,11 @@ popup ──"popup-start"──▶ service-worker ──getMediaStreamId──�
   rolling 90-second window, and renders by the video's current time.
 - [src/tver/vtt.js](src/tver/vtt.js) parses TVer's styled WebVTT into plain timed cues.
 - [src/tver/translator.js](src/tver/translator.js) sends contextual cue batches to the
-  OpenAI Responses API or Gemini using strict structured output, or to DeepL with
-  surrounding dialogue in its context field. Edge 148+ can instead translate each cue
-  with its free on-device `Translator` API. TVer does not use the audio provider abstraction.
+  OpenAI Responses API, OpenRouter, or Gemini using strict structured output, or to
+  DeepL with surrounding dialogue in its context field. OpenRouter reuses the existing
+  key but has a separate user-selectable text model. Edge 148+ can instead translate
+  each cue with its free on-device `Translator` API. TVer does not use the audio
+  provider abstraction.
 
 ### The provider abstraction
 

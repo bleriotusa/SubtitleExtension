@@ -41,6 +41,7 @@ async function load() {
   $("tt-provider").value = c.textTranslation.provider;
   $("tt-key").value = c.textTranslation.apiKey;
   $("tt-model").value = c.textTranslation.model;
+  $("tt-openrouter-model").value = c.textTranslation.openrouterModel;
   $("tt-gemini-key").value = c.textTranslation.geminiApiKey;
   $("tt-gemini-model").value = c.textTranslation.geminiModel;
   $("tt-deepl-key").value = c.textTranslation.deeplApiKey;
@@ -68,6 +69,7 @@ $("save").addEventListener("click", async () => {
       provider: $("tt-provider").value,
       apiKey: $("tt-key").value.trim(),
       model: $("tt-model").value.trim(),
+      openrouterModel: $("tt-openrouter-model").value.trim(),
       geminiApiKey: $("tt-gemini-key").value.trim(),
       geminiModel: $("tt-gemini-model").value.trim(),
       deeplApiKey: $("tt-deepl-key").value.trim(),
