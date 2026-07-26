@@ -11,6 +11,8 @@
 (() => {
   // Bail out in sandboxed iframes where extension APIs aren't available.
   if (typeof chrome === "undefined" || !chrome.storage?.local || !chrome.runtime?.onMessage) return;
+  const isTver = location.hostname === "tver.jp" || location.hostname.endsWith(".tver.jp");
+  if (isTver && window !== window.top) return;
 
   const STORAGE_KEY = "qqls.config";
   const DEFAULTS = { fontSize: 28 };
@@ -19,6 +21,7 @@
   let committed = []; // array of strings
   let partial = "";
   let settings = { ...DEFAULTS };
+  let tverState = null;
 
   chrome.storage.local.get(STORAGE_KEY).then((v) => {
     const o = v?.[STORAGE_KEY] ?? {};
@@ -79,10 +82,228 @@
       committed = [];
       partial = "";
       render();
+      if (isTver) startTverCaptions();
     } else if (root) {
+      stopTverCaptions();
       partial = "";
       root.classList.add("qqls-hidden");
     }
+  }
+
+  function startTverCaptions() {
+    stopTverCaptions();
+    tverState = {
+      observer: null,
+      interval: null,
+      trackUrl: "",
+      cues: [],
+      translations: new Map(),
+      requested: new Set(),
+      batchSize: 30,
+      provider: "openai",
+      inflight: false,
+      edgeTranslator: null,
+      edgeTranslatorPromise: null,
+      retryAfter: 0,
+      lastText: "",
+    };
+
+    scanTverResources();
+    if (typeof PerformanceObserver !== "undefined") {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) maybeLoadTverTrack(entry.name);
+      });
+      tverState.observer = observer;
+      try {
+        observer.observe({ type: "resource", buffered: true });
+      } catch {
+        observer.observe({ entryTypes: ["resource"] });
+      }
+    }
+    tverState.interval = setInterval(tickTverCaptions, 250);
+  }
+
+  function stopTverCaptions() {
+    if (!tverState) return;
+    const state = tverState;
+    try { state.observer?.disconnect(); } catch { /* ignore */ }
+    if (state.interval) clearInterval(state.interval);
+    try { state.edgeTranslator?.destroy(); } catch { /* ignore */ }
+    state.edgeTranslatorPromise?.then((translator) => {
+      if (translator !== state.edgeTranslator) {
+        try { translator.destroy(); } catch { /* ignore */ }
+      }
+    }).catch(() => {});
+    tverState = null;
+  }
+
+  function scanTverResources() {
+    for (const entry of performance.getEntriesByType("resource")) {
+      maybeLoadTverTrack(entry.name);
+    }
+  }
+
+  function maybeLoadTverTrack(url) {
+    const state = tverState;
+    if (!state || !isTverCaptionUrl(url) || state.trackUrl === url) return;
+    state.trackUrl = url;
+    chrome.runtime.sendMessage({ type: "tver-caption-track", url }).then((res) => {
+      if (!tverState || tverState !== state || state.trackUrl !== url) return;
+      if (!res?.ok) throw new Error(res?.error || "Could not load TVer caption track.");
+      state.cues = Array.isArray(res.cues) ? res.cues : [];
+      state.batchSize = Number(res.batchSize) || 30;
+      state.provider = res.provider || "openai";
+      state.translations.clear();
+      state.requested.clear();
+      tickTverCaptions();
+    }).catch((e) => {
+      if (tverState === state) state.trackUrl = "";
+      console.error("[TVer captions]", e);
+      setTimeout(() => {
+        if (tverState === state) scanTverResources();
+      }, 5000);
+    });
+  }
+
+  function isTverCaptionUrl(value) {
+    try {
+      const url = new URL(value);
+      return (
+        url.protocol === "https:" &&
+        url.hostname === "tracks.streaks.jp" &&
+        url.pathname.toLowerCase().endsWith(".vtt") &&
+        !url.pathname.toLowerCase().endsWith("/thumbnails.vtt")
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function tickTverCaptions() {
+    const state = tverState;
+    const video = document.querySelector("video");
+    if (!state || !video || !state.cues.length) return;
+
+    const time = video.currentTime;
+    const firstActive = state.cues.findIndex((cue) => cue.end > time);
+    const index = firstActive < 0 ? state.cues.length : firstActive;
+    const active = [];
+    for (let i = index; i < state.cues.length && state.cues[i].start <= time + 0.05; i++) {
+      if (state.cues[i].end > time) active.push(state.cues[i]);
+    }
+
+    const text = [...new Set(
+      active
+        .map((cue) => state.translations.get(cue.id))
+        .filter((value) => typeof value === "string" && value.trim())
+    )].join("\n");
+    setTverText(text);
+    requestTverBatch(state, index, time);
+  }
+
+  function setTverText(text) {
+    if (!tverState || tverState.lastText === text) return;
+    tverState.lastText = text;
+    ensureRoot();
+    partial = text;
+    render();
+  }
+
+  function requestTverBatch(state, index, time) {
+    if (state.inflight || Date.now() < state.retryAfter) return;
+    const cues = [];
+    const lookaheadEnd = time + 90;
+    for (let i = Math.max(0, index - 4); i < state.cues.length; i++) {
+      const cue = state.cues[i];
+      if (cue.start > lookaheadEnd || cues.length >= state.batchSize) break;
+      if (!state.translations.has(cue.id) && !state.requested.has(cue.id)) cues.push(cue);
+    }
+    if (!cues.length) return;
+
+    state.inflight = true;
+    for (const cue of cues) state.requested.add(cue.id);
+    const firstIndex = state.cues.findIndex((cue) => cue.id === cues[0].id);
+    const context = state.cues.slice(Math.max(0, firstIndex - 8), firstIndex).map((cue) => ({
+      text: cue.text,
+      english: state.translations.get(cue.id) || "",
+    }));
+
+    const request = state.provider === "edge"
+      ? translateEdgeCues(state, cues).then((translations) => ({ ok: true, translations }))
+      : chrome.runtime.sendMessage({
+          type: "tver-translate-batch",
+          cues: cues.map(({ id, text }) => ({ id, text })),
+          context,
+        });
+
+    request.then((res) => {
+      if (!tverState || tverState !== state) return;
+      if (!res?.ok) throw new Error(res?.error || "TVer caption translation failed.");
+      for (const item of res.translations || []) {
+        if (Number.isInteger(item?.id) && typeof item.text === "string") {
+          state.translations.set(item.id, item.text.trim());
+        }
+      }
+      for (const cue of cues) state.requested.delete(cue.id);
+      state.inflight = false;
+      tickTverCaptions();
+    }).catch((e) => {
+      for (const cue of cues) state.requested.delete(cue.id);
+      state.inflight = false;
+      state.retryAfter = Date.now() + 5000;
+      console.error("[TVer translation]", e);
+    });
+  }
+
+  async function translateEdgeCues(state, cues) {
+    const translator = await getEdgeTranslator(state);
+    const translations = [];
+    for (const cue of cues) {
+      const text = /^[\s♬♪〜～ー…・]+$/.test(cue.text)
+        ? ""
+        : await translator.translate(cue.text);
+      translations.push({ id: cue.id, text });
+    }
+    return translations;
+  }
+
+  async function getEdgeTranslator(state) {
+    if (state.edgeTranslator) return state.edgeTranslator;
+    if (state.edgeTranslatorPromise) return state.edgeTranslatorPromise;
+    if (typeof Translator === "undefined") {
+      throw new Error("Edge on-device translation requires Microsoft Edge 148 or later.");
+    }
+
+    state.edgeTranslatorPromise = (async () => {
+      const options = { sourceLanguage: "ja", targetLanguage: "en" };
+      const availability = await Translator.availability(options);
+      if (availability === "unavailable") {
+        throw new Error("Edge does not have an on-device Japanese → English model.");
+      }
+      if (availability === "downloadable" || availability === "downloading") {
+        setTverText("Downloading Edge's Japanese translation model…");
+      }
+      const translator = await Translator.create({
+        ...options,
+        monitor(monitor) {
+          monitor.addEventListener("downloadprogress", (event) => {
+            if (tverState !== state || !event.total) return;
+            setTverText(
+              `Downloading Edge's Japanese translation model… ${Math.round(
+                (event.loaded / event.total) * 100
+              )}%`
+            );
+          });
+        },
+      });
+      if (tverState !== state) {
+        translator.destroy();
+        throw new Error("TVer translation was stopped.");
+      }
+      state.edgeTranslator = translator;
+      return translator;
+    })();
+    return state.edgeTranslatorPromise;
   }
 
   chrome.runtime.onMessage.addListener((msg) => {

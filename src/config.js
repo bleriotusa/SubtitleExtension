@@ -37,6 +37,17 @@ export const DEFAULT_CONFIG = {
     // models like gpt-realtime-translate (NOT a dated version, NOT the model date).
     azureApiVersion: "preview",
   },
+  // TVer exposes timed Japanese WebVTT captions. Translate those directly
+  // instead of transcribing audio.
+  textTranslation: {
+    provider: "openai", // "openai" | "gemini" | "deepl" | "edge"
+    apiKey: "",
+    model: "gpt-5.6-terra",
+    geminiApiKey: "",
+    geminiModel: "gemini-3.5-flash-lite",
+    deeplApiKey: "",
+    batchSize: 30,
+  },
 
   // Audio chunking (batch providers only). Smaller = lower lag, worse accuracy.
   // Batch realistically floors at ~2000ms for good quality.
@@ -65,6 +76,7 @@ export async function getConfig() {
     openrouter: { ...DEFAULT_CONFIG.openrouter, ...(override.openrouter ?? {}) },
     geminiLive: { ...DEFAULT_CONFIG.geminiLive, ...(override.geminiLive ?? {}) },
     openaiRealtime: { ...DEFAULT_CONFIG.openaiRealtime, ...(override.openaiRealtime ?? {}) },
+    textTranslation: { ...DEFAULT_CONFIG.textTranslation, ...(override.textTranslation ?? {}) },
   };
 }
 

@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Manifest V3 browser extension (Edge/Chromium) that overlays **live English subtitles**
-on Chinese video at `v.qq.com`. It captures tab audio, sends it to a pluggable
-transcription/translation backend, and renders the result over the player.
+A Manifest V3 browser extension (Edge/Chromium) that overlays English subtitles
+on Chinese video at `v.qq.com` and Japanese drama at `tver.jp`. QQ captures tab
+audio and sends it to a pluggable transcription/translation backend. TVer
+detects its Japanese WebVTT caption track and translates timed text batches.
 
 There is **no build step, no bundler, no package.json, and no test framework.** The
 source is plain ES modules loaded directly by the browser. You ship it by loading the
@@ -17,13 +18,17 @@ folder unpacked.
 - **Load/run:** `edge://extensions` (or `chrome://extensions`) → enable Developer mode →
   **Load unpacked** → select the repo root. After editing source, click the reload icon
   on the extension card; reload the `v.qq.com` tab too if you changed the content script.
-- **Validate a backend without the extension** (the only CLI here):
+- **Validate a backend without the extension:**
   ```bash
   OPENROUTER_API_KEY=sk-or-... node scripts/spike.mjs clip.wav [--model id] [--whisper id]
   ```
   Runs a WAV clip through the OpenRouter chat path (transcribe+translate) or, with
   `--whisper`, the transcription-only endpoint. Use it to eyeball English quality and
   round-trip latency before touching the extension. `*.wav/*.mp3/*.flac` are gitignored.
+- **Validate TVer parsing and translation request shapes:**
+  ```bash
+  node scripts/test-tver.mjs
+  ```
 - **Debugging:** the offscreen document and service worker each have their own DevTools
   console (via `chrome://extensions` → "service worker" / "Inspect views"). Most runtime
   logging lands there, not in the page console.
@@ -66,7 +71,14 @@ popup ──"popup-start"──▶ service-worker ──getMediaStreamId──�
 - [src/content/overlay.js](src/content/overlay.js) — **a classic content script, NOT a
   module.** It can't `import`, so config defaults are inlined and overrides are read
   straight from `chrome.storage.local`. Reattaches into `document.fullscreenElement` on
-  fullscreen change so subtitles stay visible.
+  fullscreen change so subtitles stay visible. On TVer it detects the dynamically
+  loaded non-thumbnail `.vtt`, requests parsed cues from the worker, pretranslates a
+  rolling 90-second window, and renders by the video's current time.
+- [src/tver/vtt.js](src/tver/vtt.js) parses TVer's styled WebVTT into plain timed cues.
+- [src/tver/translator.js](src/tver/translator.js) sends contextual cue batches to the
+  OpenAI Responses API or Gemini using strict structured output, or to DeepL with
+  surrounding dialogue in its context field. Edge 148+ can instead translate each cue
+  with its free on-device `Translator` API. TVer does not use the audio provider abstraction.
 
 ### The provider abstraction
 
@@ -101,11 +113,14 @@ options page writes overrides to `chrome.storage.local` under `qqls.config`; `ge
 shallow-merges the top level and **deep-merges the per-provider blocks**. The service worker
 reads config once at Start and passes the resolved object to the offscreen doc, so providers
 never touch storage. The active provider is `config.provider`; only its matching settings
-block (`openrouter` / `geminiLive` / `openaiRealtime`) is used.
+block (`openrouter` / `geminiLive` / `openaiRealtime`) is used. TVer uses the
+separate `textTranslation` block.
 
 ## Conventions & gotchas
 
 - **No imports in the content script** — it's not a module. Anything it needs is inlined.
+- TVer caption URLs are episode-specific and dynamically issued. Detect them through
+  resource timing; never hard-code a `tracks.streaks.jp` path.
 - Cross-context messages are plain `{ type, ... }` objects. Offscreen-bound messages also
   carry `target: "offscreen"`; the offscreen listener ignores anything without it.
 - The WebRTC provider's Azure path **probes** host aliases (`*.openai.azure.com` vs

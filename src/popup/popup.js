@@ -20,7 +20,12 @@ toggle.addEventListener("click", async () => {
   const type = active ? "popup-stop" : "popup-start";
   const res = await chrome.runtime.sendMessage({ type }).catch((e) => ({ ok: false, error: String(e) }));
   toggle.disabled = false;
-  if (res?.ok) setUi(!active, active ? "" : "Listening — play the video.");
+  if (res?.ok) {
+    const note = active ? "" : res.mode === "text"
+      ? "Watching TVer's Japanese captions."
+      : "Listening — play the video.";
+    setUi(!active, note);
+  }
   else setUi(active, res?.error || "Failed.");
 });
 

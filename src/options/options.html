@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>QQ Live Subtitles — Settings</title>
+    <title>Live Subtitle Translator — Settings</title>
     <style>
       body { font: 14px -apple-system, "Helvetica Neue", Arial, sans-serif; max-width: 560px; margin: 24px auto; padding: 0 16px; color: #222; }
       h1 { font-size: 18px; }
@@ -19,13 +19,43 @@
     </style>
   </head>
   <body>
-    <h1>QQ Live Subtitles — Settings</h1>
+    <h1>Live Subtitle Translator — Settings</h1>
 
     <fieldset>
       <legend>Backend</legend>
       <label for="provider">Transcription / translation backend</label>
       <select id="provider"></select>
       <p class="hint" id="provider-hint"></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>TVer Japanese captions → English</legend>
+      <p class="hint">Translates TVer's timed Japanese caption track in contextual
+        batches. This avoids audio transcription and keeps the original timing.</p>
+      <label for="tt-provider">Translation engine</label>
+      <select id="tt-provider">
+        <option value="openai">OpenAI contextual — best drama quality</option>
+        <option value="gemini">Gemini contextual — free tier available</option>
+        <option value="deepl">DeepL with context — 500k characters/month free</option>
+        <option value="edge">Edge on-device — free, private, more literal</option>
+      </select>
+      <label for="tt-key">OpenAI API key</label>
+      <input id="tt-key" type="password" placeholder="Leave blank to reuse the OpenAI-direct key above" />
+      <label for="tt-model">OpenAI model</label>
+      <input id="tt-model" type="text" />
+      <label for="tt-gemini-key">Gemini API key</label>
+      <input id="tt-gemini-key" type="password" placeholder="Leave blank to reuse the Gemini Live key below" />
+      <label for="tt-gemini-model">Gemini model</label>
+      <input id="tt-gemini-model" type="text" />
+      <label for="tt-deepl-key">DeepL API key</label>
+      <input id="tt-deepl-key" type="password" placeholder="DeepL API Free or paid key" />
+      <label for="tt-batch">Context batch size (caption cues)</label>
+      <input id="tt-batch" type="number" min="10" max="60" step="5" />
+      <p class="hint"><code>gpt-5.6-terra</code> is the recommended quality/latency
+        balance for drama dialogue. <code>gemini-3.5-flash-lite</code> has a free
+        tier and structured output. DeepL API Free provides 500k characters/month
+        and accepts surrounding dialogue as unbilled context. Edge 148+ can
+        translate entirely on-device, but does each cue independently.</p>
     </fieldset>
 
     <fieldset>

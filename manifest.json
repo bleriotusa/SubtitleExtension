@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "QQ Live Subtitles (Chinese → English)",
-  "version": "0.1.0",
-  "description": "Real-time English subtitle overlay for Chinese video (QQ Video / v.qq.com) using tab-audio capture + a pluggable transcription/translation backend.",
+  "name": "Live Subtitle Translator",
+  "version": "0.2.0",
+  "description": "English subtitle overlay for QQ Video audio and TVer Japanese caption tracks.",
   "minimum_chrome_version": "116",
   "permissions": [
     "tabCapture",
@@ -20,7 +20,10 @@
     "https://*.openai.azure.com/*",
     "wss://*.openai.azure.com/*",
     "https://*.services.ai.azure.com/*",
-    "wss://*.services.ai.azure.com/*"
+    "wss://*.services.ai.azure.com/*",
+    "https://tracks.streaks.jp/*",
+    "https://api-free.deepl.com/*",
+    "https://api.deepl.com/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js",
@@ -36,7 +39,9 @@
       "matches": [
         "https://v.qq.com/*",
         "https://*.v.qq.com/*",
-        "https://film.qq.com/*"
+        "https://film.qq.com/*",
+        "https://tver.jp/*",
+        "https://*.tver.jp/*"
       ],
       "js": ["src/content/overlay.js"],
       "css": ["src/content/overlay.css"],

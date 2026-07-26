@@ -38,6 +38,13 @@ async function load() {
   $("oa-az-endpoint").value = o.azureEndpoint;
   $("oa-az-deploy").value = o.azureDeployment;
   $("oa-az-ver").value = o.azureApiVersion;
+  $("tt-provider").value = c.textTranslation.provider;
+  $("tt-key").value = c.textTranslation.apiKey;
+  $("tt-model").value = c.textTranslation.model;
+  $("tt-gemini-key").value = c.textTranslation.geminiApiKey;
+  $("tt-gemini-model").value = c.textTranslation.geminiModel;
+  $("tt-deepl-key").value = c.textTranslation.deeplApiKey;
+  $("tt-batch").value = c.textTranslation.batchSize;
   $("chunk").value = c.chunkMs;
   $("font").value = c.fontSize;
   updateHint();
@@ -56,6 +63,15 @@ $("save").addEventListener("click", async () => {
       azureEndpoint: $("oa-az-endpoint").value.trim(),
       azureDeployment: $("oa-az-deploy").value.trim(),
       azureApiVersion: $("oa-az-ver").value.trim(),
+    },
+    textTranslation: {
+      provider: $("tt-provider").value,
+      apiKey: $("tt-key").value.trim(),
+      model: $("tt-model").value.trim(),
+      geminiApiKey: $("tt-gemini-key").value.trim(),
+      geminiModel: $("tt-gemini-model").value.trim(),
+      deeplApiKey: $("tt-deepl-key").value.trim(),
+      batchSize: Math.max(10, Math.min(60, Number($("tt-batch").value) || 30)),
     },
     chunkMs: Number($("chunk").value) || 3000,
     fontSize: Number($("font").value) || 28,
