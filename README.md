@@ -58,7 +58,7 @@ so you can swap backends from the options page without touching capture or overl
 
 All defaults live in [`src/config.js`](src/config.js) and are overridable from the
 options page: backend, model, `chunkMs` (lag vs accuracy for batch), silence/VAD
-thresholds, subtitle font size, and line count.
+thresholds, and subtitle font size.
 
 ## Notes & limitations
 

@@ -2,8 +2,8 @@
 // service worker and renders them over the player.
 //
 // Rendering model mirrors the provider contract:
-//   - isFinal:false  -> update the single live (italic) line in place
-//   - isFinal:true   -> commit it; keep the last `maxLines` committed lines
+//   - isFinal:false  -> update the single live line in place
+//   - isFinal:true   -> commit it as the last stable subtitle
 //
 // Classic content script (not a module), so config defaults are inlined and any
 // overrides are read straight from chrome.storage.local.
@@ -13,7 +13,7 @@
   if (typeof chrome === "undefined" || !chrome.storage?.local || !chrome.runtime?.onMessage) return;
 
   const STORAGE_KEY = "qqls.config";
-  const DEFAULTS = { fontSize: 28, maxLines: 2 };
+  const DEFAULTS = { fontSize: 28 };
 
   let root = null;
   let committed = []; // array of strings
@@ -23,7 +23,6 @@
   chrome.storage.local.get(STORAGE_KEY).then((v) => {
     const o = v?.[STORAGE_KEY] ?? {};
     if (o.fontSize) settings.fontSize = o.fontSize;
-    if (o.maxLines) settings.maxLines = o.maxLines;
     if (root) applySettings();
   });
 
@@ -49,20 +48,17 @@
   function render() {
     if (!root) return;
     root.textContent = "";
-    const lines = committed.slice(-settings.maxLines);
-    for (const text of lines) {
+    // One line only: the live (streaming) text while it refines, otherwise the
+    // last committed line. A streaming partial becomes the committed line when it
+    // finalizes, so this reads as a single stable subtitle at full size.
+    const text = partial || committed[committed.length - 1] || "";
+    if (text) {
       const el = document.createElement("div");
       el.className = "qqls-line";
       el.textContent = text;
       root.appendChild(el);
     }
-    if (partial) {
-      const el = document.createElement("div");
-      el.className = "qqls-line qqls-partial";
-      el.textContent = partial;
-      root.appendChild(el);
-    }
-    root.classList.toggle("qqls-hidden", lines.length === 0 && !partial);
+    root.classList.toggle("qqls-hidden", !text);
   }
 
   function addLine(line) {

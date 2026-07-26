@@ -24,11 +24,6 @@
   white-space: pre-wrap;
 }
 
-#qqls-overlay .qqls-line.qqls-partial {
-  opacity: 0.85;
-  font-style: italic;
-}
-
 #qqls-overlay.qqls-hidden {
   display: none;
 }

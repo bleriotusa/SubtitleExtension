@@ -53,7 +53,6 @@ export const DEFAULT_CONFIG = {
 
   // Overlay appearance.
   fontSize: 28,
-  maxLines: 2,
 };
 
 export async function getConfig() {
