@@ -1,13 +1,44 @@
-const TRANSLATION_INSTRUCTIONS =
-  "Translate Japanese TV drama captions into natural, concise English subtitles. " +
-  "Use prior context to resolve omitted subjects, names, sentence fragments, register, " +
-  "jokes, and dramatic intent. Preserve plot details and do not censor. Return exactly " +
-  "one result for every input cue, with the same integer id and in the same order. Do " +
-  "not merge cues. Remove redundant speaker labels, but retain a short label when it is " +
-  "needed to distinguish overlapping or off-screen speakers. Match the source cue's " +
-  "terminal punctuation; do not add a period when the source has no sentence-ending " +
-  "punctuation. Return an empty string for music or sound-only cues; translate actual " +
-  "sung lyrics.";
+const LANGUAGE_NAMES = {
+  en: "English",
+  "zh-Hans": "Simplified Chinese",
+  "zh-Hant": "Traditional Chinese",
+  ko: "Korean",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  "pt-BR": "Brazilian Portuguese",
+};
+
+const DEEPL_TARGET_CODES = {
+  en: "EN-US",
+  "zh-Hans": "ZH-HANS",
+  "zh-Hant": "ZH-HANT",
+  ko: "KO",
+  es: "ES",
+  fr: "FR",
+  de: "DE",
+  "pt-BR": "PT-BR",
+};
+
+function translationInstructions(primaryTarget, secondaryTarget) {
+  const primaryName = languageName(primaryTarget);
+  const secondaryName = secondaryTarget ? languageName(secondaryTarget) : "";
+  const targetInstruction = secondaryTarget
+    ? `Translate every cue twice: put the natural ${primaryName} translation in text and the natural ${secondaryName} translation in secondaryText. `
+    : `Put the natural ${primaryName} translation in text and return an empty string in secondaryText. `;
+  return (
+    "Translate Japanese TV drama captions into natural, concise subtitles. " +
+    targetInstruction +
+    "Use prior context to resolve omitted subjects, names, sentence fragments, register, " +
+    "jokes, and dramatic intent. Preserve plot details and do not censor. Return exactly " +
+    "one result for every input cue, with the same integer id and in the same order. Do " +
+    "not merge cues. Remove redundant speaker labels, but retain a short label when it is " +
+    "needed to distinguish overlapping or off-screen speakers. Match the source cue's " +
+    "terminal punctuation; do not add a period when the source has no sentence-ending " +
+    "punctuation. Return an empty string for music or sound-only cues; translate actual " +
+    "sung lyrics."
+  );
+}
 
 const TRANSLATION_SCHEMA = {
   type: "object",
@@ -19,8 +50,9 @@ const TRANSLATION_SCHEMA = {
         properties: {
           id: { type: "integer" },
           text: { type: "string" },
+          secondaryText: { type: "string" },
         },
-        required: ["id", "text"],
+        required: ["id", "text", "secondaryText"],
         additionalProperties: false,
       },
     },
@@ -32,27 +64,38 @@ const TRANSLATION_SCHEMA = {
 export async function translateTverCues(config, cues, context = []) {
   if (!Array.isArray(cues) || cues.length === 0) return [];
   const settings = config.textTranslation;
+  const { primaryTarget, secondaryTarget } = translationTargets(settings);
+  const instructions = translationInstructions(primaryTarget, secondaryTarget);
   const input = {
-    prior_context: context.slice(-8).map(({ text, english }) => ({ text, english })),
+    prior_context: context.slice(-8).map(({ text, primary, secondary, english }) => ({
+      source: text,
+      primary: primary || english || "",
+      secondary: secondary || "",
+    })),
     cues: cues.map(({ id, text }) => ({ id, text })),
   };
 
   let translations;
   if (settings.provider === "openrouter") {
-    translations = await translateWithOpenRouter(config, input);
+    translations = await translateWithOpenRouter(config, input, instructions);
   } else if (settings.provider === "gemini") {
-    translations = await translateWithGemini(config, input);
+    translations = await translateWithGemini(config, input, instructions);
   } else if (settings.provider === "deepl") {
-    translations = await translateWithDeepL(config, input);
+    translations = await translateWithDeepL(
+      config,
+      input,
+      primaryTarget,
+      secondaryTarget
+    );
   } else if (settings.provider === "edge") {
     throw new Error("Edge on-device translation must run in the TVer page.");
   } else {
-    translations = await translateWithOpenAI(config, input);
+    translations = await translateWithOpenAI(config, input, instructions);
   }
   return validateTranslations(translations, cues, settings.provider || "openai");
 }
 
-async function translateWithOpenRouter(config, input) {
+async function translateWithOpenRouter(config, input, instructions) {
   const settings = config.textTranslation;
   const apiKey = config.openrouter?.apiKey;
   const model = settings.openrouterModel || config.openrouter?.model;
@@ -75,7 +118,7 @@ async function translateWithOpenRouter(config, input) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: TRANSLATION_INSTRUCTIONS },
+        { role: "system", content: instructions },
         { role: "user", content: JSON.stringify(input) },
       ],
       response_format: {
@@ -103,7 +146,7 @@ async function translateWithOpenRouter(config, input) {
   return JSON.parse(outputText)?.translations;
 }
 
-async function translateWithOpenAI(config, input) {
+async function translateWithOpenAI(config, input, instructions) {
   const settings = config.textTranslation;
   const apiKey =
     settings.apiKey ||
@@ -125,9 +168,9 @@ async function translateWithOpenAI(config, input) {
       model: settings.model,
       reasoning: { effort: "none" },
       store: false,
-      instructions: TRANSLATION_INSTRUCTIONS,
+      instructions,
       input: JSON.stringify(input),
-      max_output_tokens: Math.max(1200, input.cues.length * 80),
+      max_output_tokens: Math.max(1600, input.cues.length * 140),
       text: {
         format: {
           type: "json_schema",
@@ -153,7 +196,7 @@ async function translateWithOpenAI(config, input) {
   return JSON.parse(outputText)?.translations;
 }
 
-async function translateWithGemini(config, input) {
+async function translateWithGemini(config, input, instructions) {
   const settings = config.textTranslation;
   const apiKey = settings.geminiApiKey || config.geminiLive?.apiKey;
   if (!apiKey) {
@@ -175,7 +218,7 @@ async function translateWithGemini(config, input) {
       body: JSON.stringify({
         contents: [{
           role: "user",
-          parts: [{ text: `${TRANSLATION_INSTRUCTIONS}\n\nInput:\n${JSON.stringify(input)}` }],
+          parts: [{ text: `${instructions}\n\nInput:\n${JSON.stringify(input)}` }],
         }],
         generationConfig: {
           responseMimeType: "application/json",
@@ -196,18 +239,38 @@ async function translateWithGemini(config, input) {
   return JSON.parse(outputText)?.translations;
 }
 
-async function translateWithDeepL(config, input) {
+async function translateWithDeepL(config, input, primaryTarget, secondaryTarget) {
   const apiKey = config.textTranslation.deeplApiKey;
   if (!apiKey) {
     throw new Error("DeepL API key not set for TVer text translation (open extension Settings).");
   }
 
   const translatable = input.cues.filter((cue) => !isSoundOnly(cue.text));
-  if (!translatable.length) return input.cues.map((cue) => ({ id: cue.id, text: "" }));
+  if (!translatable.length) {
+    return input.cues.map((cue) => ({ id: cue.id, text: "", secondaryText: "" }));
+  }
   const context = [
-    ...input.prior_context.map((item) => item.text),
+    ...input.prior_context.map((item) => item.source),
     ...input.cues.map((item) => item.text),
   ].join("\n");
+  const [primary, secondary] = await Promise.all([
+    translateDeepLTarget(apiKey, translatable, context, primaryTarget),
+    secondaryTarget
+      ? translateDeepLTarget(apiKey, translatable, context, secondaryTarget)
+      : Promise.resolve(new Map()),
+  ]);
+  return input.cues.map((cue) => ({
+    id: cue.id,
+    text: primary.get(cue.id) || "",
+    secondaryText: secondary.get(cue.id) || "",
+  }));
+}
+
+async function translateDeepLTarget(apiKey, translatable, context, targetLanguage) {
+  const targetCode = DEEPL_TARGET_CODES[targetLanguage];
+  if (!targetCode) {
+    throw new Error(`DeepL does not support the selected target: ${targetLanguage}`);
+  }
   const host = apiKey.endsWith(":fx") ? "api-free.deepl.com" : "api.deepl.com";
   const res = await fetch(`https://${host}/v2/translate`, {
     method: "POST",
@@ -218,7 +281,7 @@ async function translateWithDeepL(config, input) {
     body: JSON.stringify({
       text: translatable.map((cue) => cue.text),
       source_lang: "JA",
-      target_lang: "EN-US",
+      target_lang: targetCode,
       context,
       split_sentences: "0",
       model_type: "prefer_quality_optimized",
@@ -232,10 +295,9 @@ async function translateWithDeepL(config, input) {
   if (!Array.isArray(json.translations) || json.translations.length !== translatable.length) {
     throw new Error("DeepL returned an invalid translation batch.");
   }
-  const byId = new Map(
+  return new Map(
     translatable.map((cue, index) => [cue.id, json.translations[index]?.text || ""])
   );
-  return input.cues.map((cue) => ({ id: cue.id, text: byId.get(cue.id) || "" }));
 }
 
 function isSoundOnly(text) {
@@ -251,7 +313,8 @@ function validateTranslations(translations, cues, provider) {
     (item) =>
       Number.isInteger(item?.id) &&
       expected.has(item.id) &&
-      typeof item.text === "string"
+      typeof item.text === "string" &&
+      typeof item.secondaryText === "string"
   );
   if (result.length !== cues.length || new Set(result.map((item) => item.id)).size !== cues.length) {
     throw new Error(`${provider} returned missing or duplicate caption cue ids.`);
@@ -260,7 +323,24 @@ function validateTranslations(translations, cues, provider) {
   return result.map((item) => ({
     ...item,
     text: normalizeSubtitlePunctuation(sourceById.get(item.id), item.text),
+    secondaryText: normalizeSubtitlePunctuation(
+      sourceById.get(item.id),
+      item.secondaryText
+    ),
   }));
+}
+
+function translationTargets(settings) {
+  const primaryTarget = settings.primaryTargetLanguage || "en";
+  const requestedSecondary = settings.secondaryTargetLanguage || "";
+  return {
+    primaryTarget,
+    secondaryTarget: requestedSecondary === primaryTarget ? "" : requestedSecondary,
+  };
+}
+
+function languageName(code) {
+  return LANGUAGE_NAMES[code] || code;
 }
 
 export function normalizeSubtitlePunctuation(source, translation) {
@@ -268,7 +348,9 @@ export function normalizeSubtitlePunctuation(source, translation) {
   if (!text || hasTerminalPunctuation(source)) return text;
   // Drop one model-added full stop, including before a closing quote/bracket.
   // Do not damage an intentional English ellipsis.
-  return text.replace(/(^|[^.])\.([”’"'）)\]】〉》]*)$/, "$1$2");
+  return text
+    .replace(/(^|[^.])\.([”’"'」』）)\]】〉》]*)$/, "$1$2")
+    .replace(/。([”’"'」』）)\]】〉》]*)$/, "$1");
 }
 
 function hasTerminalPunctuation(source) {

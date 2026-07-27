@@ -39,6 +39,8 @@ async function load() {
   $("oa-az-deploy").value = o.azureDeployment;
   $("oa-az-ver").value = o.azureApiVersion;
   $("tt-provider").value = c.textTranslation.provider;
+  $("tt-primary-language").value = c.textTranslation.primaryTargetLanguage;
+  $("tt-secondary-language").value = c.textTranslation.secondaryTargetLanguage;
   $("tt-key").value = c.textTranslation.apiKey;
   $("tt-model").value = c.textTranslation.model;
   $("tt-openrouter-model").value = c.textTranslation.openrouterModel;
@@ -68,6 +70,8 @@ $("save").addEventListener("click", async () => {
     },
     textTranslation: {
       provider: $("tt-provider").value,
+      primaryTargetLanguage: $("tt-primary-language").value,
+      secondaryTargetLanguage: $("tt-secondary-language").value,
       apiKey: $("tt-key").value.trim(),
       model: $("tt-model").value.trim(),
       openrouterModel: $("tt-openrouter-model").value.trim(),
@@ -78,7 +82,7 @@ $("save").addEventListener("click", async () => {
       hideNativeCaptions: $("tt-hide-native").checked,
     },
     chunkMs: Number($("chunk").value) || 3000,
-    fontSize: Number($("font").value) || 28,
+    fontSize: Number($("font").value) || 34,
   });
   $("saved").textContent = "Saved ✓";
   setTimeout(() => ($("saved").textContent = ""), 1500);

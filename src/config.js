@@ -50,6 +50,8 @@ export const DEFAULT_CONFIG = {
     deeplApiKey: "",
     batchSize: 30,
     hideNativeCaptions: false,
+    primaryTargetLanguage: "en",
+    secondaryTargetLanguage: "",
   },
 
   // Audio chunking (batch providers only). Smaller = lower lag, worse accuracy.
@@ -66,7 +68,7 @@ export const DEFAULT_CONFIG = {
   sourceLangHint: "Mandarin Chinese",
 
   // Overlay appearance.
-  fontSize: 28,
+  fontSize: 34,
 };
 
 export async function getConfig() {

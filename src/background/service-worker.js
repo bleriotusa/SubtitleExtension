@@ -117,7 +117,13 @@ async function loadTverTrack(url, senderTabId) {
   if (!cues.length) throw new Error("TVer caption track contained no readable cues.");
   const config = await getConfig();
   const batchSize = Math.max(10, Math.min(60, config.textTranslation.batchSize || 30));
-  return { cues, batchSize, provider: config.textTranslation.provider || "openai" };
+  return {
+    cues,
+    batchSize,
+    provider: config.textTranslation.provider || "openai",
+    primaryTargetLanguage: config.textTranslation.primaryTargetLanguage || "en",
+    secondaryTargetLanguage: config.textTranslation.secondaryTargetLanguage || "",
+  };
 }
 
 async function translateTverBatch(msg, senderTabId) {

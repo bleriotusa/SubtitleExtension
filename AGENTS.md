@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## What this is
 
-A Manifest V3 browser extension (Edge/Chromium) that overlays English subtitles
+A Manifest V3 browser extension (Edge/Chromium) that overlays translated subtitles
 on Chinese video at `v.qq.com` and Japanese drama at `tver.jp`. QQ captures tab
 audio and sends it to a pluggable transcription/translation backend. TVer
 detects its Japanese WebVTT caption track and translates timed text batches.
@@ -78,9 +78,10 @@ popup ──"popup-start"──▶ service-worker ──getMediaStreamId──�
 - [src/tver/translator.js](src/tver/translator.js) sends contextual cue batches to the
   OpenAI Responses API, OpenRouter, or Gemini using strict structured output, or to
   DeepL with surrounding dialogue in its context field. OpenRouter reuses the existing
-  key but has a separate user-selectable text model. Edge 148+ can instead translate
-  each cue with its free on-device `Translator` API. TVer does not use the audio
-  provider abstraction.
+  key but has a separate user-selectable text model. TVer can emit primary and secondary
+  target languages; contextual models return both in one response, DeepL calls each
+  target separately, and Edge 148+ creates one free on-device `Translator` session per
+  target. TVer does not use the audio provider abstraction.
 
 ### The provider abstraction
 

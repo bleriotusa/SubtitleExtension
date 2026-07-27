@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Live Subtitle Translator",
-  "version": "0.2.2",
-  "description": "English subtitle overlay for QQ Video audio and TVer Japanese caption tracks.",
+  "version": "0.3.0",
+  "description": "Translated subtitle overlay for QQ Video audio and TVer Japanese caption tracks.",
   "minimum_chrome_version": "116",
   "permissions": [
     "tabCapture",

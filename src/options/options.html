@@ -31,7 +31,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>TVer Japanese captions → English</legend>
+      <legend>TVer Japanese captions → translated subtitles</legend>
       <p class="hint">Translates TVer's timed Japanese caption track in contextual
         batches. This avoids audio transcription and keeps the original timing.</p>
       <label for="tt-provider">Translation engine</label>
@@ -42,6 +42,35 @@
         <option value="deepl">DeepL with context — 500k characters/month free</option>
         <option value="edge">Edge on-device — free, private, more literal</option>
       </select>
+      <div class="inline">
+        <div>
+          <label for="tt-primary-language">First subtitle language</label>
+          <select id="tt-primary-language">
+            <option value="en">English</option>
+            <option value="zh-Hans">Chinese (Simplified)</option>
+            <option value="zh-Hant">Chinese (Traditional)</option>
+            <option value="ko">Korean</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt-BR">Portuguese (Brazil)</option>
+          </select>
+        </div>
+        <div>
+          <label for="tt-secondary-language">Second subtitle language</label>
+          <select id="tt-secondary-language">
+            <option value="">Off</option>
+            <option value="en">English</option>
+            <option value="zh-Hans">Chinese (Simplified)</option>
+            <option value="zh-Hant">Chinese (Traditional)</option>
+            <option value="ko">Korean</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt-BR">Portuguese (Brazil)</option>
+          </select>
+        </div>
+      </div>
       <label for="tt-key">OpenAI API key</label>
       <input id="tt-key" type="password" placeholder="Leave blank to reuse the OpenAI-direct key above" />
       <label for="tt-model">OpenAI model</label>
@@ -58,14 +87,16 @@
       <input id="tt-batch" type="number" min="10" max="60" step="5" />
       <label class="checkbox" for="tt-hide-native">
         <input id="tt-hide-native" type="checkbox" />
-        Hide TVer's Japanese captions while English subtitles are active
+        Hide TVer's Japanese captions while translated subtitles are active
       </label>
       <p class="hint"><code>gpt-5.6-terra</code> is the recommended quality/latency
         balance for drama dialogue. OpenRouter text translation reuses the OpenRouter
         key below; choose a model that supports structured outputs. Direct
         <code>gemini-3.5-flash-lite</code> has a free tier. DeepL API Free provides
         500k characters/month and accepts surrounding dialogue as unbilled context.
-        Edge 148+ can translate entirely on-device, but does each cue independently.</p>
+        Edge 148+ can translate entirely on-device, but does each cue independently.
+        Contextual AI providers produce both languages in one request; DeepL makes
+        one request per selected language.</p>
     </fieldset>
 
     <fieldset>

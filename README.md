@@ -62,7 +62,9 @@ loads its Japanese caption track; the extension translates roughly 90 seconds
 ahead while preserving TVer's cue timing. The recommended default is
 `gpt-5.6-terra` with reasoning disabled, using batches of neighboring cues for
 drama context. Settings can optionally hide TVer's native Japanese caption layer
-while the English overlay is active.
+while the translated overlay is active. A second target language can be enabled
+to show two translated subtitle lines at once; contextual AI providers produce
+both in one request, while DeepL makes one request per language.
 
 ### TVer text engines
 
@@ -73,6 +75,10 @@ while the English overlay is active.
 | Gemini `gemini-3.5-flash-lite` | Free tier / paid | 30-cue batches | Best free contextual option; free-tier data may be used to improve Google products. |
 | DeepL API | 500k characters/month free | Shared dialogue context | Strong dedicated translation with unbilled context; less adaptable than an LLM. |
 | Edge on-device Translator | Free | One cue at a time | Fast, private, and offline after download; requires Edge 148+ and is more literal. |
+
+The first and optional second subtitle languages are selected independently in
+Settings. Available targets are English, Simplified or Traditional Chinese,
+Korean, Spanish, French, German, and Brazilian Portuguese.
 
 ## Tuning
 

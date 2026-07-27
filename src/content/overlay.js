@@ -15,7 +15,7 @@
   if (isTver && window !== window.top) return;
 
   const STORAGE_KEY = "qqls.config";
-  const DEFAULTS = { fontSize: 28, hideNativeTverCaptions: false };
+  const DEFAULTS = { fontSize: 34, hideNativeTverCaptions: false };
 
   let root = null;
   let committed = []; // array of strings
@@ -122,9 +122,11 @@
       requested: new Set(),
       batchSize: 30,
       provider: "openai",
+      primaryTargetLanguage: "en",
+      secondaryTargetLanguage: "",
       inflight: false,
-      edgeTranslator: null,
-      edgeTranslatorPromise: null,
+      edgeTranslators: new Map(),
+      edgeTranslatorPromises: new Map(),
       retryAfter: 0,
       lastText: "",
     };
@@ -150,12 +152,9 @@
     const state = tverState;
     try { state.observer?.disconnect(); } catch { /* ignore */ }
     if (state.interval) clearInterval(state.interval);
-    try { state.edgeTranslator?.destroy(); } catch { /* ignore */ }
-    state.edgeTranslatorPromise?.then((translator) => {
-      if (translator !== state.edgeTranslator) {
-        try { translator.destroy(); } catch { /* ignore */ }
-      }
-    }).catch(() => {});
+    for (const translator of state.edgeTranslators.values()) {
+      try { translator.destroy(); } catch { /* ignore */ }
+    }
     tverState = null;
     syncNativeCaptionVisibility();
   }
@@ -176,6 +175,11 @@
       state.cues = Array.isArray(res.cues) ? res.cues : [];
       state.batchSize = Number(res.batchSize) || 30;
       state.provider = res.provider || "openai";
+      state.primaryTargetLanguage = res.primaryTargetLanguage || "en";
+      state.secondaryTargetLanguage =
+        res.secondaryTargetLanguage === state.primaryTargetLanguage
+          ? ""
+          : res.secondaryTargetLanguage || "";
       state.translations.clear();
       state.requested.clear();
       tickTverCaptions();
@@ -215,11 +219,12 @@
       if (state.cues[i].end > time) active.push(state.cues[i]);
     }
 
-    const text = [...new Set(
-      active
-        .map((cue) => state.translations.get(cue.id))
-        .filter((value) => typeof value === "string" && value.trim())
-    )].join("\n");
+    const text = [...new Set(active.flatMap((cue) => {
+      const translation = state.translations.get(cue.id);
+      if (!translation) return [];
+      return [translation.text, translation.secondaryText]
+        .filter((value) => typeof value === "string" && value.trim());
+    }))].join("\n");
     setTverText(text);
     requestTverBatch(state, index, time);
   }
@@ -248,7 +253,8 @@
     const firstIndex = state.cues.findIndex((cue) => cue.id === cues[0].id);
     const context = state.cues.slice(Math.max(0, firstIndex - 8), firstIndex).map((cue) => ({
       text: cue.text,
-      english: state.translations.get(cue.id) || "",
+      primary: state.translations.get(cue.id)?.text || "",
+      secondary: state.translations.get(cue.id)?.secondaryText || "",
     }));
 
     const request = state.provider === "edge"
@@ -264,7 +270,11 @@
       if (!res?.ok) throw new Error(res?.error || "TVer caption translation failed.");
       for (const item of res.translations || []) {
         if (Number.isInteger(item?.id) && typeof item.text === "string") {
-          state.translations.set(item.id, item.text.trim());
+          state.translations.set(item.id, {
+            text: item.text.trim(),
+            secondaryText:
+              typeof item.secondaryText === "string" ? item.secondaryText.trim() : "",
+          });
         }
       }
       for (const cue of cues) state.requested.delete(cue.id);
@@ -279,15 +289,26 @@
   }
 
   async function translateEdgeCues(state, cues) {
-    const translator = await getEdgeTranslator(state);
+    const primaryTranslator = await getEdgeTranslator(
+      state,
+      state.primaryTargetLanguage
+    );
+    const secondaryTranslator = state.secondaryTargetLanguage
+      ? await getEdgeTranslator(state, state.secondaryTargetLanguage)
+      : null;
     const translations = [];
     for (const cue of cues) {
-      const text = /^[\s♬♪〜～ー…・]+$/.test(cue.text)
-        ? ""
-        : await translator.translate(cue.text);
+      const soundOnly = /^[\s♬♪〜～ー…・]+$/.test(cue.text);
+      const [text, secondaryText] = soundOnly
+        ? ["", ""]
+        : await Promise.all([
+            primaryTranslator.translate(cue.text),
+            secondaryTranslator ? secondaryTranslator.translate(cue.text) : "",
+          ]);
       translations.push({
         id: cue.id,
         text: normalizeSubtitlePunctuation(cue.text, text),
+        secondaryText: normalizeSubtitlePunctuation(cue.text, secondaryText),
       });
     }
     return translations;
@@ -298,24 +319,32 @@
     if (!text || /[。．.!！?？…‥]([」』”’"'）)\]】〉》]*)$/.test(source.trim())) {
       return text;
     }
-    return text.replace(/(^|[^.])\.([”’"'）)\]】〉》]*)$/, "$1$2");
+    return text
+      .replace(/(^|[^.])\.([”’"'」』）)\]】〉》]*)$/, "$1$2")
+      .replace(/。([”’"'」』）)\]】〉》]*)$/, "$1");
   }
 
-  async function getEdgeTranslator(state) {
-    if (state.edgeTranslator) return state.edgeTranslator;
-    if (state.edgeTranslatorPromise) return state.edgeTranslatorPromise;
+  async function getEdgeTranslator(state, targetLanguage) {
+    if (state.edgeTranslators.has(targetLanguage)) {
+      return state.edgeTranslators.get(targetLanguage);
+    }
+    if (state.edgeTranslatorPromises.has(targetLanguage)) {
+      return state.edgeTranslatorPromises.get(targetLanguage);
+    }
     if (typeof Translator === "undefined") {
       throw new Error("Edge on-device translation requires Microsoft Edge 148 or later.");
     }
 
-    state.edgeTranslatorPromise = (async () => {
-      const options = { sourceLanguage: "ja", targetLanguage: "en" };
+    const promise = (async () => {
+      const options = { sourceLanguage: "ja", targetLanguage };
       const availability = await Translator.availability(options);
       if (availability === "unavailable") {
-        throw new Error("Edge does not have an on-device Japanese → English model.");
+        throw new Error(
+          `Edge does not have an on-device Japanese → ${targetLanguage} model.`
+        );
       }
       if (availability === "downloadable" || availability === "downloading") {
-        setTverText("Downloading Edge's Japanese translation model…");
+        setTverText(`Downloading Edge's Japanese → ${targetLanguage} model…`);
       }
       const translator = await Translator.create({
         ...options,
@@ -323,7 +352,7 @@
           monitor.addEventListener("downloadprogress", (event) => {
             if (tverState !== state || !event.total) return;
             setTverText(
-              `Downloading Edge's Japanese translation model… ${Math.round(
+              `Downloading Edge's Japanese → ${targetLanguage} model… ${Math.round(
                 (event.loaded / event.total) * 100
               )}%`
             );
@@ -334,10 +363,12 @@
         translator.destroy();
         throw new Error("TVer translation was stopped.");
       }
-      state.edgeTranslator = translator;
+      state.edgeTranslators.set(targetLanguage, translator);
       return translator;
     })();
-    return state.edgeTranslatorPromise;
+    state.edgeTranslatorPromises.set(targetLanguage, promise);
+    promise.catch(() => state.edgeTranslatorPromises.delete(targetLanguage));
+    return promise;
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
