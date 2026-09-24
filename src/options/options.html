@@ -76,11 +76,20 @@
       <label for="tt-model">OpenAI model</label>
       <input id="tt-model" type="text" />
       <label for="tt-openrouter-model">OpenRouter text model</label>
-      <input id="tt-openrouter-model" type="text" placeholder="For example: google/gemini-3.1-flash-lite" />
+      <input id="tt-openrouter-model" type="text" list="tt-openrouter-models" placeholder="For example: google/gemini-3.8-flash" />
+      <datalist id="tt-openrouter-models">
+        <option value="google/gemini-3.8-flash">Newest Flash — best Gemini quality</option>
+        <option value="google/gemini-3.5-flash-lite">Newest Flash Lite — fast, cheaper</option>
+        <option value="google/gemini-3.1-flash-lite">Cheapest</option>
+      </datalist>
       <label for="tt-gemini-key">Gemini API key</label>
       <input id="tt-gemini-key" type="password" placeholder="Leave blank to reuse the Gemini Live key below" />
       <label for="tt-gemini-model">Gemini model</label>
-      <input id="tt-gemini-model" type="text" />
+      <input id="tt-gemini-model" type="text" list="tt-gemini-models" />
+      <datalist id="tt-gemini-models">
+        <option value="gemini-3.8-flash">Newest Flash — best quality</option>
+        <option value="gemini-3.5-flash-lite">Flash Lite — free tier</option>
+      </datalist>
       <label for="tt-deepl-key">DeepL API key</label>
       <input id="tt-deepl-key" type="password" placeholder="DeepL API Free or paid key" />
       <label for="tt-batch">Context batch size (caption cues)</label>
@@ -91,7 +100,10 @@
       </label>
       <p class="hint"><code>gpt-5.6-terra</code> is the recommended quality/latency
         balance for drama dialogue. OpenRouter text translation reuses the OpenRouter
-        key below; choose a model that supports structured outputs. Direct
+        key below; choose a model that supports structured outputs, e.g.
+        <code>google/gemini-3.8-flash</code> for quality or
+        <code>google/gemini-3.5-flash-lite</code> for speed. Non-Lite Gemini 3
+        models are run with low thinking to keep latency down. Direct
         <code>gemini-3.5-flash-lite</code> has a free tier. DeepL API Free provides
         500k characters/month and accepts surrounding dialogue as unbilled context.
         Edge 148+ can translate entirely on-device, but does each cue independently.

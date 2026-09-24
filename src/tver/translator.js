@@ -61,6 +61,13 @@ const TRANSLATION_SCHEMA = {
   additionalProperties: false,
 };
 
+// Non-Lite Gemini 3.x models (Flash, Pro) think at medium/high by default,
+// which adds seconds and output-token cost without helping subtitle
+// translation. Flash Lite already defaults to minimal thinking, so leave it.
+function isThinkingGemini(model) {
+  return /^(google\/)?gemini-3/.test(model || "") && !/lite/.test(model);
+}
+
 export async function translateTverCues(config, cues, context = []) {
   if (!Array.isArray(cues) || cues.length === 0) return [];
   const settings = config.textTranslation;
@@ -129,6 +136,7 @@ async function translateWithOpenRouter(config, input, instructions) {
           schema: TRANSLATION_SCHEMA,
         },
       },
+      ...(isThinkingGemini(model) ? { reasoning: { effort: "low" } } : {}),
       provider: { require_parameters: true },
     }),
   });
@@ -223,6 +231,9 @@ async function translateWithGemini(config, input, instructions) {
         generationConfig: {
           responseMimeType: "application/json",
           responseJsonSchema: TRANSLATION_SCHEMA,
+          ...(isThinkingGemini(settings.geminiModel)
+            ? { thinkingConfig: { thinkingLevel: "low" } }
+            : {}),
         },
       }),
     }

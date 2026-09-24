@@ -109,6 +109,18 @@ try {
   assert.equal(request.response_format.json_schema.strict, true);
   assert.equal(request.provider.require_parameters, true);
   assert.match(request.messages[0].content, /Simplified Chinese/);
+  assert.equal(request.reasoning, undefined);
+
+  await translateTverCues({
+    textTranslation: { provider: "openrouter", openrouterModel: "google/gemini-3.8-flash" },
+    openrouter: { apiKey: "sk-or-test", baseUrl: "https://openrouter.ai/api/v1" },
+  }, cues);
+  assert.deepEqual(request.reasoning, { effort: "low" });
+  await translateTverCues({
+    textTranslation: { provider: "openrouter", openrouterModel: "google/gemini-3.5-flash-lite" },
+    openrouter: { apiKey: "sk-or-test", baseUrl: "https://openrouter.ai/api/v1" },
+  }, cues);
+  assert.equal(request.reasoning, undefined);
 
   globalThis.fetch = async (_url, init) => {
     request = JSON.parse(init.body);
@@ -146,6 +158,12 @@ try {
   ]);
   assert.equal(request.generationConfig.responseMimeType, "application/json");
   assert.equal(request.generationConfig.responseJsonSchema.type, "object");
+  assert.equal(request.generationConfig.thinkingConfig, undefined);
+
+  await translateTverCues({
+    textTranslation: { provider: "gemini", geminiApiKey: "k", geminiModel: "gemini-3.8-flash" },
+  }, cues);
+  assert.deepEqual(request.generationConfig.thinkingConfig, { thinkingLevel: "low" });
 
   const deepLRequests = [];
   globalThis.fetch = async (url, init) => {
