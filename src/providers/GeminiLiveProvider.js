@@ -96,7 +96,10 @@ export class GeminiLiveProvider extends SubtitleProvider {
     if (text) {
       if (!this._partial) this._tTurnStart = performance.now();
       this._partial += text;
-      this._emit({ text: this._partial.trim(), isFinal: false, tStart: this._tTurnStart });
+      this._splitLongLine();
+      if (this._partial.trim()) {
+        this._emit({ text: this._partial.trim(), isFinal: false, tStart: this._tTurnStart });
+      }
     }
     if (sc.turnComplete) {
       if (this._partial.trim()) {
@@ -106,11 +109,45 @@ export class GeminiLiveProvider extends SubtitleProvider {
     }
   }
 
+  // Continuous TV audio can keep one Live "turn" open for a long time, so the
+  // line would grow into a paragraph. Commit finished sentences once the next
+  // one has a few words (so the reader isn't cut off), and hard-wrap run-ons.
+  _splitLongLine() {
+    const boundary = lastSentenceEnd(this._partial);
+    if (boundary > 0 && this._partial.slice(boundary).trim().length >= MIN_NEXT_CHARS) {
+      this._commit(boundary);
+    } else if (this._partial.trim().length > MAX_LINE_CHARS) {
+      const space = this._partial.lastIndexOf(" ", MAX_LINE_CHARS);
+      this._commit(space > MAX_LINE_CHARS / 2 ? space : MAX_LINE_CHARS);
+    }
+  }
+
+  _commit(index) {
+    const done = this._partial.slice(0, index).trim();
+    if (done) this._emit({ text: done, isFinal: true, tStart: this._tTurnStart });
+    this._partial = this._partial.slice(index);
+    this._tTurnStart = performance.now();
+  }
+
   async stop() {
     this._ready = false;
     try { this._ws?.close(); } catch { /* ignore */ }
     this._ws = null;
   }
+}
+
+const MIN_NEXT_CHARS = 15;
+const MAX_LINE_CHARS = 110;
+
+// Index just past the last sentence end (".", "!", "?", "。", ...) that has
+// text after it, or -1.
+function lastSentenceEnd(text) {
+  const re = /[.!?…]+["'”’)\]]*\s+|[。！？]+[」』”’）)]*/g;
+  let end = -1;
+  for (const m of text.matchAll(re)) {
+    if (m.index + m[0].length < text.length) end = m.index + m[0].length;
+  }
+  return end;
 }
 
 // Live API frames arrive as JSON, but may be delivered as a Blob/ArrayBuffer.
