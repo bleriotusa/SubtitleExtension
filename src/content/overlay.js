@@ -222,8 +222,10 @@
     const text = [...new Set(active.flatMap((cue) => {
       const translation = state.translations.get(cue.id);
       if (!translation) return [];
-      return [translation.text, translation.secondaryText]
-        .filter((value) => typeof value === "string" && value.trim());
+      return [
+        translation.text,
+        state.secondaryTargetLanguage ? translation.secondaryText : "",
+      ].filter((value) => typeof value === "string" && value.trim());
     }))].join("\n");
     setTverText(text);
     requestTverBatch(state, index, time);

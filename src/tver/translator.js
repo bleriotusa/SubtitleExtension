@@ -99,7 +99,12 @@ export async function translateTverCues(config, cues, context = []) {
   } else {
     translations = await translateWithOpenAI(config, input, instructions);
   }
-  return validateTranslations(translations, cues, settings.provider || "openai");
+  return validateTranslations(
+    translations,
+    cues,
+    settings.provider || "openai",
+    Boolean(secondaryTarget)
+  );
 }
 
 async function translateWithOpenRouter(config, input, instructions) {
@@ -224,9 +229,10 @@ async function translateWithGemini(config, input, instructions) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        systemInstruction: { parts: [{ text: instructions }] },
         contents: [{
           role: "user",
-          parts: [{ text: `${instructions}\n\nInput:\n${JSON.stringify(input)}` }],
+          parts: [{ text: JSON.stringify(input) }],
         }],
         generationConfig: {
           responseMimeType: "application/json",
@@ -315,7 +321,7 @@ function isSoundOnly(text) {
   return /^[\s♬♪〜～ー…・]+$/.test(text);
 }
 
-function validateTranslations(translations, cues, provider) {
+function validateTranslations(translations, cues, provider, wantsSecondary) {
   if (!Array.isArray(translations)) {
     throw new Error(`${provider} returned an invalid translation batch.`);
   }
@@ -334,10 +340,10 @@ function validateTranslations(translations, cues, provider) {
   return result.map((item) => ({
     ...item,
     text: normalizeSubtitlePunctuation(sourceById.get(item.id), item.text),
-    secondaryText: normalizeSubtitlePunctuation(
-      sourceById.get(item.id),
-      item.secondaryText
-    ),
+    // Some models (Gemini) fill secondaryText even when told to leave it empty.
+    secondaryText: wantsSecondary
+      ? normalizeSubtitlePunctuation(sourceById.get(item.id), item.secondaryText)
+      : "",
   }));
 }
 
